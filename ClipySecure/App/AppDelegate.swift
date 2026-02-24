@@ -1,6 +1,7 @@
 import Cocoa
 
 @main
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
 
