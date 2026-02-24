@@ -3,28 +3,41 @@ import Cocoa
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem?
+    private var databaseService: DatabaseService?
+    private var clipboardMonitor: ClipboardMonitor?
+    private var statusBarController: StatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupStatusBar()
+        do {
+            let dbService = try DatabaseService()
+            databaseService = dbService
+
+            let monitor = ClipboardMonitor(databaseService: dbService)
+            clipboardMonitor = monitor
+
+            statusBarController = StatusBarController(
+                databaseService: dbService,
+                clipboardMonitor: monitor
+            )
+
+            Task {
+                await monitor.startMonitoring()
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Failed to Initialize"
+            alert.informativeText = "ClipySecure could not start: \(error.localizedDescription)"
+            alert.alertStyle = .critical
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+        }
     }
 
-    private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-
-        if let button = statusItem?.button {
-            button.image = NSImage(
-                systemSymbolName: "paperclip",
-                accessibilityDescription: "ClipySecure"
-            )
+    func applicationWillTerminate(_ notification: Notification) {
+        if let monitor = clipboardMonitor {
+            Task {
+                await monitor.stopMonitoring()
+            }
         }
-
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "ClipySecure", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(
-            NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        )
-        statusItem?.menu = menu
     }
 }

@@ -11,6 +11,12 @@
 		A10000010000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000002 /* Assets.xcassets */; };
 		A10000010000000000000010 /* ClipySecureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000010 /* ClipySecureTests.swift */; };
 		A10000010000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A60000010000000000000001 /* GRDB */; };
+		A10000010000000000000100 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000100 /* Constants.swift */; };
+		A10000010000000000000101 /* String+Truncate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000101 /* String+Truncate.swift */; };
+		A10000010000000000000102 /* ClipItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000102 /* ClipItem.swift */; };
+		A10000010000000000000103 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000103 /* DatabaseService.swift */; };
+		A10000010000000000000104 /* ClipboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000104 /* ClipboardMonitor.swift */; };
+		A10000010000000000000105 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000105 /* StatusBarController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +37,12 @@
 		A20000010000000000000005 /* ClipySecure.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipySecure.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000010000000000000010 /* ClipySecureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipySecureTests.swift; sourceTree = "<group>"; };
 		A20000010000000000000011 /* ClipySecureTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipySecureTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000010000000000000100 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		A20000010000000000000101 /* String+Truncate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Truncate.swift"; sourceTree = "<group>"; };
+		A20000010000000000000102 /* ClipItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipItem.swift; sourceTree = "<group>"; };
+		A20000010000000000000103 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
+		A20000010000000000000104 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMonitor.swift; sourceTree = "<group>"; };
+		A20000010000000000000105 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +99,7 @@
 		A70000010000000000000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A20000010000000000000102 /* ClipItem.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -94,6 +107,8 @@
 		A70000010000000000000005 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A20000010000000000000103 /* DatabaseService.swift */,
+				A20000010000000000000104 /* ClipboardMonitor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -108,13 +123,23 @@
 		A70000010000000000000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A70000010000000000000200 /* MenuBar */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000200 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000105 /* StatusBarController.swift */,
+			);
+			path = MenuBar;
 			sourceTree = "<group>";
 		};
 		A70000010000000000000106 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				A20000010000000000000101 /* String+Truncate.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -122,6 +147,7 @@
 		A70000010000000000000107 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				A20000010000000000000100 /* Constants.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -251,6 +277,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000010000000000000001 /* AppDelegate.swift in Sources */,
+				A10000010000000000000100 /* Constants.swift in Sources */,
+				A10000010000000000000101 /* String+Truncate.swift in Sources */,
+				A10000010000000000000102 /* ClipItem.swift in Sources */,
+				A10000010000000000000103 /* DatabaseService.swift in Sources */,
+				A10000010000000000000104 /* ClipboardMonitor.swift in Sources */,
+				A10000010000000000000105 /* StatusBarController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
