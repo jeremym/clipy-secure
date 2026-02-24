@@ -1,0 +1,11 @@
+--swiftversion 6.0
+--minversion 0.54
+--indent 4
+--indentcase false
+--wrapcollections before-first
+--wraparguments before-first
+--wrapparameters before-first
+--maxwidth 150
+--redundanttype inferred
+--stripunusedargs closure-only
+--header strip
