@@ -7,7 +7,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let databaseService: DatabaseService
     private let clipboardMonitor: ClipboardMonitor
     private var historyItems: [ClipItem] = []
+    private var snippetFolders: [SnippetFolder] = []
+    private var allSnippets: [Snippet] = []
     private var observationTask: Task<Void, Never>?
+    private var snippetObservationTask: Task<Void, Never>?
+    private var snippetEditorWindow: SnippetEditorWindow?
 
     init(databaseService: DatabaseService, clipboardMonitor: ClipboardMonitor) {
         self.databaseService = databaseService
@@ -15,6 +19,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         super.init()
         setupStatusBar()
         startObservation()
+        startSnippetObservation()
+    }
+
+    func setSnippetEditorWindow(_ window: SnippetEditorWindow) {
+        self.snippetEditorWindow = window
     }
 
     private func setupStatusBar() {
@@ -54,8 +63,33 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    private func startSnippetObservation() {
+        let observation = ValueObservation.tracking { db -> ([SnippetFolder], [Snippet]) in
+            let folders = try SnippetFolder
+                .order(Column("sortIndex").asc)
+                .fetchAll(db)
+            let snippets = try Snippet
+                .order(Column("sortIndex").asc)
+                .fetchAll(db)
+            return (folders, snippets)
+        }
+
+        snippetObservationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                for try await (folders, snippets) in observation.values(in: self.databaseService.dbQueue) {
+                    self.snippetFolders = folders
+                    self.allSnippets = snippets
+                }
+            } catch {
+                // Observation ended
+            }
+        }
+    }
+
     deinit {
         observationTask?.cancel()
+        snippetObservationTask?.cancel()
     }
 
     // MARK: - NSMenuDelegate
@@ -84,6 +118,20 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         clearItem.target = self
         menu.addItem(clearItem)
 
+        // Snippet section
+        menu.addItem(NSMenuItem.separator())
+        addSnippetMenuItems(to: menu)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let editSnippetsItem = NSMenuItem(
+            title: "Edit Snippets\u{2026}",
+            action: #selector(editSnippetsClicked(_:)),
+            keyEquivalent: ""
+        )
+        editSnippetsItem.target = self
+        menu.addItem(editSnippetsItem)
+
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(
@@ -91,6 +139,35 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         ))
+    }
+
+    // MARK: - Snippet Menu Items
+
+    private func addSnippetMenuItems(to menu: NSMenu) {
+        let enabledFolders = snippetFolders.filter(\.isEnabled)
+        guard !enabledFolders.isEmpty else { return }
+
+        for folder in enabledFolders {
+            let folderSnippets = allSnippets.filter { $0.folderId == folder.id && $0.isEnabled }
+            guard !folderSnippets.isEmpty else { continue }
+
+            let folderItem = NSMenuItem(title: folder.title, action: nil, keyEquivalent: "")
+            let submenu = NSMenu(title: folder.title)
+
+            for snippet in folderSnippets {
+                let snippetItem = NSMenuItem(
+                    title: snippet.title,
+                    action: #selector(snippetClicked(_:)),
+                    keyEquivalent: ""
+                )
+                snippetItem.target = self
+                snippetItem.representedObject = snippet.content
+                submenu.addItem(snippetItem)
+            }
+
+            folderItem.submenu = submenu
+            menu.addItem(folderItem)
+        }
     }
 
     // MARK: - Menu Item Builder
@@ -182,6 +259,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         Task {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)
         }
+    }
+
+    @objc private func snippetClicked(_ sender: NSMenuItem) {
+        guard let content = sender.representedObject as? String else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(content, forType: .string)
+
+        let changeCount = pasteboard.changeCount
+        Task {
+            await clipboardMonitor.updateLastSetChangeCount(changeCount)
+        }
+    }
+
+    @objc private func editSnippetsClicked(_ sender: NSMenuItem) {
+        snippetEditorWindow?.showWindow()
     }
 
     @objc private func clearAllClicked(_ sender: NSMenuItem) {

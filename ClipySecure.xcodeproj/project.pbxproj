@@ -23,6 +23,12 @@
 		A10000010000000000000202 /* PasteboardReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000202 /* PasteboardReader.swift */; };
 		A10000010000000000000203 /* NSImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000203 /* NSImage+Resize.swift */; };
 		A10000010000000000000204 /* DataCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000204 /* DataCleanupService.swift */; };
+		A10000010000000000000300 /* SnippetFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000300 /* SnippetFolder.swift */; };
+		A10000010000000000000301 /* Snippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000301 /* Snippet.swift */; };
+		A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000302 /* SnippetEditorViewModel.swift */; };
+		A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000303 /* SnippetEditorWindow.swift */; };
+		A10000010000000000000304 /* SnippetEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000304 /* SnippetEditorView.swift */; };
+		A10000010000000000000305 /* SnippetImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000305 /* SnippetImportExport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +61,12 @@
 		A20000010000000000000202 /* PasteboardReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardReader.swift; sourceTree = "<group>"; };
 		A20000010000000000000203 /* NSImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Resize.swift"; sourceTree = "<group>"; };
 		A20000010000000000000204 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
+		A20000010000000000000300 /* SnippetFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetFolder.swift; sourceTree = "<group>"; };
+		A20000010000000000000301 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
+		A20000010000000000000302 /* SnippetEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorViewModel.swift; sourceTree = "<group>"; };
+		A20000010000000000000303 /* SnippetEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorWindow.swift; sourceTree = "<group>"; };
+		A20000010000000000000304 /* SnippetEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorView.swift; sourceTree = "<group>"; };
+		A20000010000000000000305 /* SnippetImportExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetImportExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +126,8 @@
 			children = (
 				A20000010000000000000102 /* ClipItem.swift */,
 				A20000010000000000000201 /* ClipContent.swift */,
+				A20000010000000000000300 /* SnippetFolder.swift */,
+				A20000010000000000000301 /* Snippet.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -126,48 +140,18 @@
 				A20000010000000000000200 /* EncryptionKeyManager.swift */,
 				A20000010000000000000202 /* PasteboardReader.swift */,
 				A20000010000000000000204 /* DataCleanupService.swift */,
+				A20000010000000000000305 /* SnippetImportExport.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000105 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		A70000010000000000000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				A70000010000000000000200 /* MenuBar */,
+				A70000010000000000000300 /* Snippets */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000200 /* MenuBar */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000105 /* StatusBarController.swift */,
-			);
-			path = MenuBar;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000106 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000101 /* String+Truncate.swift */,
-				A20000010000000000000203 /* NSImage+Resize.swift */,
-			);
-			path = Extensions;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000107 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000100 /* Constants.swift */,
-			);
-			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A70000010000000000000007 /* Resources */ = {
@@ -195,6 +179,48 @@
 				A20000010000000000000011 /* ClipySecureTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000105 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000302 /* SnippetEditorViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000106 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000101 /* String+Truncate.swift */,
+				A20000010000000000000203 /* NSImage+Resize.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000107 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000100 /* Constants.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000200 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000105 /* StatusBarController.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000300 /* Snippets */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000303 /* SnippetEditorWindow.swift */,
+				A20000010000000000000304 /* SnippetEditorView.swift */,
+			);
+			path = Snippets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -245,7 +271,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1610;
-				LastUpgradeCheck = 1610;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					A50000010000000000000001 = {
 						CreatedOnToolsVersion = 16.1;
@@ -307,6 +333,12 @@
 				A10000010000000000000202 /* PasteboardReader.swift in Sources */,
 				A10000010000000000000203 /* NSImage+Resize.swift in Sources */,
 				A10000010000000000000204 /* DataCleanupService.swift in Sources */,
+				A10000010000000000000300 /* SnippetFolder.swift in Sources */,
+				A10000010000000000000301 /* Snippet.swift in Sources */,
+				A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */,
+				A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */,
+				A10000010000000000000304 /* SnippetEditorView.swift in Sources */,
+				A10000010000000000000305 /* SnippetImportExport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,6 +395,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -386,6 +419,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -426,6 +460,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -442,6 +477,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 6.0;
 			};
@@ -455,6 +491,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClipySecure/Resources/Info.plist;
@@ -481,6 +518,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClipySecure/Resources/Info.plist;
@@ -505,6 +543,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -522,6 +561,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -583,7 +623,6 @@
 			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = A40000010000000000000001 /* Project object */;
 }

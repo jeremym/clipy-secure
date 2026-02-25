@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var dataCleanupService: DataCleanupService?
     private var cleanupTimer: Timer?
+    private var snippetEditorWindow: SnippetEditorWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -22,10 +23,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let monitor = ClipboardMonitor(databaseService: dbService)
             clipboardMonitor = monitor
 
-            statusBarController = StatusBarController(
+            let statusBar = StatusBarController(
                 databaseService: dbService,
                 clipboardMonitor: monitor
             )
+            statusBarController = statusBar
+
+            // Set up snippet editor
+            let snippetVM = SnippetEditorViewModel(databaseService: dbService)
+            let editorWindow = SnippetEditorWindow(viewModel: snippetVM)
+            snippetEditorWindow = editorWindow
+            statusBar.setSnippetEditorWindow(editorWindow)
 
             Task {
                 await monitor.startMonitoring()

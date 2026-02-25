@@ -59,8 +59,35 @@ final class DatabaseService: Sendable {
             }
         }
 
+        migrator.registerMigration("v3-createSnippetTables") { db in
+            try db.create(table: "snippetFolder") { t in
+                t.primaryKey("id", .text)
+                t.column("title", .text).notNull().defaults(to: "Untitled Folder")
+                t.column("sortIndex", .integer).notNull().defaults(to: 0)
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+
+            try db.create(table: "snippet") { t in
+                t.primaryKey("id", .text)
+                t.column("folderId", .text)
+                    .notNull()
+                    .references("snippetFolder", onDelete: .cascade)
+                    .indexed()
+                t.column("title", .text).notNull().defaults(to: "Untitled Snippet")
+                t.column("content", .text).notNull().defaults(to: "")
+                t.column("sortIndex", .integer).notNull().defaults(to: 0)
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
+
+    // MARK: - ClipItem CRUD
 
     func save(clip: ClipItem) throws {
         try dbQueue.write { db in
@@ -100,6 +127,71 @@ final class DatabaseService: Sendable {
                     )
                     """,
                 arguments: [limit]
+            )
+        }
+    }
+
+    // MARK: - SnippetFolder CRUD
+
+    func fetchFolders() throws -> [SnippetFolder] {
+        try dbQueue.read { db in
+            try SnippetFolder
+                .order(Column("sortIndex").asc)
+                .fetchAll(db)
+        }
+    }
+
+    func saveFolder(_ folder: SnippetFolder) throws {
+        try dbQueue.write { db in
+            try folder.save(db)
+        }
+    }
+
+    func deleteFolder(id: String) throws {
+        _ = try dbQueue.write { db in
+            try SnippetFolder.deleteOne(db, id: id)
+        }
+    }
+
+    func reorderFolders(_ orderedIds: [String]) throws {
+        try dbQueue.write { db in
+            for (index, folderId) in orderedIds.enumerated() {
+                try db.execute(
+                    sql: "UPDATE snippetFolder SET sortIndex = ?, updatedAt = ? WHERE id = ?",
+                    arguments: [index, Date(), folderId]
+                )
+            }
+        }
+    }
+
+    // MARK: - Snippet CRUD
+
+    func fetchSnippets(inFolder folderId: String) throws -> [Snippet] {
+        try dbQueue.read { db in
+            try Snippet
+                .filter(Column("folderId") == folderId)
+                .order(Column("sortIndex").asc)
+                .fetchAll(db)
+        }
+    }
+
+    func saveSnippet(_ snippet: Snippet) throws {
+        try dbQueue.write { db in
+            try snippet.save(db)
+        }
+    }
+
+    func deleteSnippet(id: String) throws {
+        _ = try dbQueue.write { db in
+            try Snippet.deleteOne(db, id: id)
+        }
+    }
+
+    func moveSnippet(id: String, toFolder folderId: String, atIndex index: Int) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE snippet SET folderId = ?, sortIndex = ?, updatedAt = ? WHERE id = ?",
+                arguments: [folderId, index, Date(), id]
             )
         }
     }
