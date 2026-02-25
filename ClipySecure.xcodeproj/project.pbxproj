@@ -145,14 +145,6 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		A70000010000000000000105 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000302 /* SnippetEditorViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
 		A70000010000000000000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -160,40 +152,6 @@
 				A70000010000000000000300 /* Snippets */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000300 /* Snippets */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000303 /* SnippetEditorWindow.swift */,
-				A20000010000000000000304 /* SnippetEditorView.swift */,
-			);
-			path = Snippets;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000200 /* MenuBar */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000105 /* StatusBarController.swift */,
-			);
-			path = MenuBar;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000106 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000101 /* String+Truncate.swift */,
-				A20000010000000000000203 /* NSImage+Resize.swift */,
-			);
-			path = Extensions;
-			sourceTree = "<group>";
-		};
-		A70000010000000000000107 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000100 /* Constants.swift */,
-			);
-			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A70000010000000000000007 /* Resources */ = {
@@ -221,6 +179,48 @@
 				A20000010000000000000011 /* ClipySecureTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000105 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000302 /* SnippetEditorViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000106 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000101 /* String+Truncate.swift */,
+				A20000010000000000000203 /* NSImage+Resize.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000107 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000100 /* Constants.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000200 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000105 /* StatusBarController.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000300 /* Snippets */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000303 /* SnippetEditorWindow.swift */,
+				A20000010000000000000304 /* SnippetEditorView.swift */,
+			);
+			path = Snippets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -271,7 +271,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1610;
-				LastUpgradeCheck = 1610;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					A50000010000000000000001 = {
 						CreatedOnToolsVersion = 16.1;
@@ -395,6 +395,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -418,6 +419,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -458,6 +460,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -474,6 +477,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 6.0;
 			};
@@ -487,6 +491,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClipySecure/Resources/Info.plist;
@@ -513,6 +518,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClipySecure/Resources/Info.plist;
@@ -537,6 +543,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -554,6 +561,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -615,7 +623,6 @@
 			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = A40000010000000000000001 /* Project object */;
 }
