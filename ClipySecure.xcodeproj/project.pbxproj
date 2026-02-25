@@ -23,6 +23,12 @@
 		A10000010000000000000202 /* PasteboardReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000202 /* PasteboardReader.swift */; };
 		A10000010000000000000203 /* NSImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000203 /* NSImage+Resize.swift */; };
 		A10000010000000000000204 /* DataCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000204 /* DataCleanupService.swift */; };
+		A10000010000000000000300 /* SnippetFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000300 /* SnippetFolder.swift */; };
+		A10000010000000000000301 /* Snippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000301 /* Snippet.swift */; };
+		A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000302 /* SnippetEditorViewModel.swift */; };
+		A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000303 /* SnippetEditorWindow.swift */; };
+		A10000010000000000000304 /* SnippetEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000304 /* SnippetEditorView.swift */; };
+		A10000010000000000000305 /* SnippetImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000305 /* SnippetImportExport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +61,12 @@
 		A20000010000000000000202 /* PasteboardReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardReader.swift; sourceTree = "<group>"; };
 		A20000010000000000000203 /* NSImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Resize.swift"; sourceTree = "<group>"; };
 		A20000010000000000000204 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
+		A20000010000000000000300 /* SnippetFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetFolder.swift; sourceTree = "<group>"; };
+		A20000010000000000000301 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
+		A20000010000000000000302 /* SnippetEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorViewModel.swift; sourceTree = "<group>"; };
+		A20000010000000000000303 /* SnippetEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorWindow.swift; sourceTree = "<group>"; };
+		A20000010000000000000304 /* SnippetEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorView.swift; sourceTree = "<group>"; };
+		A20000010000000000000305 /* SnippetImportExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetImportExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +126,8 @@
 			children = (
 				A20000010000000000000102 /* ClipItem.swift */,
 				A20000010000000000000201 /* ClipContent.swift */,
+				A20000010000000000000300 /* SnippetFolder.swift */,
+				A20000010000000000000301 /* Snippet.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -126,6 +140,7 @@
 				A20000010000000000000200 /* EncryptionKeyManager.swift */,
 				A20000010000000000000202 /* PasteboardReader.swift */,
 				A20000010000000000000204 /* DataCleanupService.swift */,
+				A20000010000000000000305 /* SnippetImportExport.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -133,6 +148,7 @@
 		A70000010000000000000105 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				A20000010000000000000302 /* SnippetEditorViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -141,8 +157,18 @@
 			isa = PBXGroup;
 			children = (
 				A70000010000000000000200 /* MenuBar */,
+				A70000010000000000000300 /* Snippets */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A70000010000000000000300 /* Snippets */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000303 /* SnippetEditorWindow.swift */,
+				A20000010000000000000304 /* SnippetEditorView.swift */,
+			);
+			path = Snippets;
 			sourceTree = "<group>";
 		};
 		A70000010000000000000200 /* MenuBar */ = {
@@ -307,6 +333,12 @@
 				A10000010000000000000202 /* PasteboardReader.swift in Sources */,
 				A10000010000000000000203 /* NSImage+Resize.swift in Sources */,
 				A10000010000000000000204 /* DataCleanupService.swift in Sources */,
+				A10000010000000000000300 /* SnippetFolder.swift in Sources */,
+				A10000010000000000000301 /* Snippet.swift in Sources */,
+				A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */,
+				A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */,
+				A10000010000000000000304 /* SnippetEditorView.swift in Sources */,
+				A10000010000000000000305 /* SnippetImportExport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
