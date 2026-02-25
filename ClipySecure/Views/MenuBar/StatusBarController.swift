@@ -18,13 +18,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "paperclip",
-                accessibilityDescription: "ClipySecure"
-            )
+            if let image = NSImage(systemSymbolName: "paperclip", accessibilityDescription: "ClipySecure") {
+                image.isTemplate = true
+                image.size = NSSize(width: 18, height: 18)
+                button.image = image
+            }
+            button.toolTip = "ClipySecure"
         }
 
         let menu = NSMenu()
