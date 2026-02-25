@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dataCleanupService: DataCleanupService?
     private var cleanupTimer: Timer?
     private var snippetEditorWindow: SnippetEditorWindow?
+    private var accessibilityService: AccessibilityService?
+    private var pasteService: PasteService?
+    private var hotKeyService: HotKeyService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -23,9 +26,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let monitor = ClipboardMonitor(databaseService: dbService)
             clipboardMonitor = monitor
 
+            // Set up accessibility and paste services
+            let accessibility = AccessibilityService()
+            accessibilityService = accessibility
+
+            let paste = PasteService(accessibilityService: accessibility)
+            pasteService = paste
+
             let statusBar = StatusBarController(
                 databaseService: dbService,
-                clipboardMonitor: monitor
+                clipboardMonitor: monitor,
+                pasteService: paste,
+                accessibilityService: accessibility
             )
             statusBarController = statusBar
 
@@ -34,6 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let editorWindow = SnippetEditorWindow(viewModel: snippetVM)
             snippetEditorWindow = editorWindow
             statusBar.setSnippetEditorWindow(editorWindow)
+
+            // Set up global hotkeys
+            let hotKeys = HotKeyService(
+                statusBarController: statusBar,
+                databaseService: dbService
+            )
+            hotKeyService = hotKeys
 
             Task {
                 await monitor.startMonitoring()

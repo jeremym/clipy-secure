@@ -6,6 +6,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let databaseService: DatabaseService
     private let clipboardMonitor: ClipboardMonitor
+    private let pasteService: PasteService
+    private let accessibilityService: AccessibilityService
     private var historyItems: [ClipItem] = []
     private var snippetFolders: [SnippetFolder] = []
     private var allSnippets: [Snippet] = []
@@ -13,9 +15,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var snippetObservationTask: Task<Void, Never>?
     private var snippetEditorWindow: SnippetEditorWindow?
 
-    init(databaseService: DatabaseService, clipboardMonitor: ClipboardMonitor) {
+    private enum MenuMode {
+        case full
+        case historyOnly
+        case snippetsOnly
+    }
+    private var menuMode: MenuMode = .full
+
+    init(
+        databaseService: DatabaseService,
+        clipboardMonitor: ClipboardMonitor,
+        pasteService: PasteService,
+        accessibilityService: AccessibilityService
+    ) {
         self.databaseService = databaseService
         self.clipboardMonitor = clipboardMonitor
+        self.pasteService = pasteService
+        self.accessibilityService = accessibilityService
         super.init()
         setupStatusBar()
         startObservation()
@@ -92,21 +108,49 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         snippetObservationTask?.cancel()
     }
 
+    // MARK: - Hotkey Menu Actions
+
+    func popUpMainMenu() {
+        menuMode = .full
+        statusItem.button?.performClick(nil)
+    }
+
+    func popUpHistoryMenu() {
+        menuMode = .historyOnly
+        statusItem.button?.performClick(nil)
+    }
+
+    func popUpSnippetMenu() {
+        menuMode = .snippetsOnly
+        statusItem.button?.performClick(nil)
+    }
+
     // MARK: - NSMenuDelegate
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        if historyItems.isEmpty {
-            let emptyItem = NSMenuItem(title: "No History", action: nil, keyEquivalent: "")
-            emptyItem.isEnabled = false
-            menu.addItem(emptyItem)
-        } else {
-            for (index, item) in historyItems.enumerated() {
-                let menuItem = buildMenuItem(for: item, at: index)
-                menu.addItem(menuItem)
-            }
+        let currentMode = menuMode
+        menuMode = .full
+
+        switch currentMode {
+        case .full:
+            buildFullMenu(menu)
+        case .historyOnly:
+            buildHistoryMenu(menu)
+        case .snippetsOnly:
+            buildSnippetsMenu(menu)
         }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuMode = .full
+    }
+
+    // MARK: - Menu Builders
+
+    private func buildFullMenu(_ menu: NSMenu) {
+        addHistoryItems(to: menu)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -141,7 +185,54 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         ))
     }
 
-    // MARK: - Snippet Menu Items
+    private func buildHistoryMenu(_ menu: NSMenu) {
+        addHistoryItems(to: menu)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let clearItem = NSMenuItem(
+            title: "Clear All",
+            action: #selector(clearAllClicked(_:)),
+            keyEquivalent: ""
+        )
+        clearItem.target = self
+        menu.addItem(clearItem)
+    }
+
+    private func buildSnippetsMenu(_ menu: NSMenu) {
+        addSnippetMenuItems(to: menu)
+
+        if menu.items.isEmpty {
+            let emptyItem = NSMenuItem(title: "No Snippets", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+        }
+
+        menu.addItem(NSMenuItem.separator())
+
+        let editSnippetsItem = NSMenuItem(
+            title: "Edit Snippets\u{2026}",
+            action: #selector(editSnippetsClicked(_:)),
+            keyEquivalent: ""
+        )
+        editSnippetsItem.target = self
+        menu.addItem(editSnippetsItem)
+    }
+
+    // MARK: - Menu Item Helpers
+
+    private func addHistoryItems(to menu: NSMenu) {
+        if historyItems.isEmpty {
+            let emptyItem = NSMenuItem(title: "No History", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+        } else {
+            for (index, item) in historyItems.enumerated() {
+                let menuItem = buildMenuItem(for: item, at: index)
+                menu.addItem(menuItem)
+            }
+        }
+    }
 
     private func addSnippetMenuItems(to menu: NSMenu) {
         let enabledFolders = snippetFolders.filter(\.isEnabled)
@@ -259,6 +350,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         Task {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)
         }
+
+        // Auto-paste with delay to let menu dismiss and target app regain focus
+        Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            pasteService.paste()
+        }
     }
 
     @objc private func snippetClicked(_ sender: NSMenuItem) {
@@ -270,6 +367,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let changeCount = pasteboard.changeCount
         Task {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)
+        }
+
+        // Auto-paste with delay to let menu dismiss and target app regain focus
+        Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            pasteService.paste()
         }
     }
 
