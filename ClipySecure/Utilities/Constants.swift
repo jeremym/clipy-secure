@@ -6,4 +6,6 @@ enum Constants {
     static let maxTitleLength = 40
     static let bundleID = "com.clipysecure.app"
     static let appSupportDirectoryName = "com.clipysecure.app"
+    static let cleanupIntervalSeconds: TimeInterval = 1800 // 30 minutes
+    static let maxImageThumbnailWidth: CGFloat = 200
 }

@@ -69,13 +69,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(emptyItem)
         } else {
             for (index, item) in historyItems.enumerated() {
-                let menuItem = NSMenuItem(
-                    title: item.title,
-                    action: #selector(historyItemClicked(_:)),
-                    keyEquivalent: index < 9 ? "\(index + 1)" : ""
-                )
-                menuItem.target = self
-                menuItem.tag = index
+                let menuItem = buildMenuItem(for: item, at: index)
                 menu.addItem(menuItem)
             }
         }
@@ -99,16 +93,90 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         ))
     }
 
+    // MARK: - Menu Item Builder
+
+    private func buildMenuItem(for item: ClipItem, at index: Int) -> NSMenuItem {
+        let menuItem = NSMenuItem(
+            title: item.title,
+            action: #selector(historyItemClicked(_:)),
+            keyEquivalent: index < 9 ? "\(index + 1)" : ""
+        )
+        menuItem.target = self
+        menuItem.tag = index
+
+        // Show thumbnail for image clips
+        if item.primaryType == ClipContentType.tiff.rawValue,
+           let data = item.imageData,
+           let image = NSImage(data: data)
+        {
+            image.size = NSSize(width: 32, height: 32)
+            menuItem.image = image
+        }
+
+        // Add type indicator for non-text clips
+        if let typeStr = item.primaryType as String? {
+            switch typeStr {
+            case ClipContentType.rtf.rawValue, ClipContentType.rtfd.rawValue:
+                menuItem.title = "\u{1F4DD} " + item.title
+            case ClipContentType.pdf.rawValue:
+                menuItem.title = "\u{1F4C4} " + item.title
+            case ClipContentType.filenames.rawValue:
+                menuItem.title = "\u{1F4C1} " + item.title
+            case ClipContentType.url.rawValue:
+                menuItem.title = "\u{1F517} " + item.title
+            case ClipContentType.tiff.rawValue:
+                menuItem.title = "\u{1F5BC} " + item.title
+            default:
+                break
+            }
+        }
+
+        // Pin indicator
+        if item.isPinned {
+            menuItem.title = "\u{1F4CC} " + menuItem.title
+        }
+
+        return menuItem
+    }
+
     // MARK: - Actions
 
     @objc private func historyItemClicked(_ sender: NSMenuItem) {
         let index = sender.tag
-        guard index >= 0, index < historyItems.count,
-              let stringValue = historyItems[index].stringValue else { return }
+        guard index >= 0, index < historyItems.count else { return }
 
+        let item = historyItems[index]
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(stringValue, forType: .string)
+
+        // Restore all available types when pasting
+        var wroteContent = false
+
+        if let rtfData = item.rtfData {
+            pasteboard.setData(rtfData, forType: .rtf)
+            wroteContent = true
+        }
+        if let pdfData = item.pdfData {
+            pasteboard.setData(pdfData, forType: .pdf)
+            wroteContent = true
+        }
+        if let imageData = item.imageData {
+            pasteboard.setData(imageData, forType: .png)
+            wroteContent = true
+        }
+        if let filenamesStr = item.filenames,
+           let data = filenamesStr.data(using: .utf8),
+           let paths = try? JSONDecoder().decode([String].self, from: data) {
+            let urls = paths.compactMap { URL(fileURLWithPath: $0) as NSURL }
+            pasteboard.writeObjects(urls)
+            wroteContent = true
+        }
+        if let stringValue = item.stringValue {
+            pasteboard.setString(stringValue, forType: .string)
+            wroteContent = true
+        }
+
+        guard wroteContent else { return }
         let changeCount = pasteboard.changeCount
 
         Task {

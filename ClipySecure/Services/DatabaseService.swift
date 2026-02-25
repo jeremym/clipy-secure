@@ -15,9 +15,25 @@ final class DatabaseService: Sendable {
         )
 
         let dbPath = appSupportURL.appendingPathComponent("clipy.db").path
+
+        // SQLCipher encryption key infrastructure is ready (EncryptionKeyManager).
+        // Actual SQLCipher activation deferred — the standard GRDB SPM product does
+        // not bundle SQLCipher; integrating it requires swapping to GRDBCipher or a
+        // custom SQLite build. The key manager is wired so encryption can be enabled
+        // in a follow-up with minimal changes:
+        //
+        //   let keyManager = EncryptionKeyManager()
+        //   let key = try keyManager.getOrCreateDatabaseKey()
+        //   var config = Configuration()
+        //   config.prepareDatabase { db in
+        //       try db.usePassphrase(key)
+        //   }
+        //   dbQueue = try DatabaseQueue(path: dbPath, configuration: config)
+
         dbQueue = try DatabaseQueue(path: dbPath)
 
         var migrator = DatabaseMigrator()
+
         migrator.registerMigration("v1-createClipItems") { db in
             try db.create(table: "clipItem") { t in
                 t.primaryKey("id", .text)
@@ -29,6 +45,20 @@ final class DatabaseService: Sendable {
                 t.column("updatedAt", .datetime).notNull()
             }
         }
+
+        migrator.registerMigration("v2-addMultiTypeColumns") { db in
+            try db.alter(table: "clipItem") { t in
+                t.add(column: "types", .text).defaults(to: "[]")
+                t.add(column: "rtfData", .blob)
+                t.add(column: "pdfData", .blob)
+                t.add(column: "imageData", .blob)
+                t.add(column: "filenames", .text)
+                t.add(column: "urls", .text)
+                t.add(column: "sourceAppId", .text)
+                t.add(column: "isPinned", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 
