@@ -5,11 +5,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var databaseService: DatabaseService?
     private var clipboardMonitor: ClipboardMonitor?
     private var statusBarController: StatusBarController?
+    private var dataCleanupService: DataCleanupService?
+    private var cleanupTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             let dbService = try DatabaseService()
             databaseService = dbService
+
+            let cleanup = DataCleanupService(dbQueue: dbService.dbQueue)
+            dataCleanupService = cleanup
+
+            // Run cleanup on launch
+            try? cleanup.runCleanup()
 
             let monitor = ClipboardMonitor(databaseService: dbService)
             clipboardMonitor = monitor
@@ -22,6 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 await monitor.startMonitoring()
             }
+
+            // Schedule periodic cleanup every 30 minutes
+            cleanupTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak cleanup] _ in
+                try? cleanup?.runCleanup()
+            }
         } catch {
             let alert = NSAlert()
             alert.messageText = "Failed to Initialize"
@@ -33,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        cleanupTimer?.invalidate()
+        cleanupTimer = nil
+
         if let monitor = clipboardMonitor {
             Task {
                 await monitor.stopMonitoring()

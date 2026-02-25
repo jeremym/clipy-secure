@@ -30,9 +30,8 @@ actor ClipboardMonitor {
     }
 
     private func pollClipboard() async {
-        let (currentCount, string) = await MainActor.run {
-            let pb = NSPasteboard.general
-            return (pb.changeCount, pb.string(forType: .string))
+        let currentCount = await MainActor.run {
+            NSPasteboard.general.changeCount
         }
 
         guard currentCount != lastChangeCount else { return }
@@ -40,9 +39,12 @@ actor ClipboardMonitor {
 
         guard currentCount != lastSetChangeCount else { return }
 
-        guard let string, !string.isEmpty else { return }
+        // Use PasteboardReader for full multi-type reading + concealed type detection
+        guard let content = await MainActor.run(body: {
+            PasteboardReader.read()
+        }) else { return }
 
-        let clip = ClipItem(stringValue: string)
+        let clip = ClipItem(content: content)
         try? databaseService.save(clip: clip)
     }
 

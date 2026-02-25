@@ -18,6 +18,11 @@
 		A10000010000000000000104 /* ClipboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000104 /* ClipboardMonitor.swift */; };
 		A10000010000000000000105 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000105 /* StatusBarController.swift */; };
 		A10000010000000000000106 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000106 /* main.swift */; };
+		A10000010000000000000200 /* EncryptionKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000200 /* EncryptionKeyManager.swift */; };
+		A10000010000000000000201 /* ClipContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000201 /* ClipContent.swift */; };
+		A10000010000000000000202 /* PasteboardReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000202 /* PasteboardReader.swift */; };
+		A10000010000000000000203 /* NSImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000203 /* NSImage+Resize.swift */; };
+		A10000010000000000000204 /* DataCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000204 /* DataCleanupService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +50,11 @@
 		A20000010000000000000104 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMonitor.swift; sourceTree = "<group>"; };
 		A20000010000000000000105 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		A20000010000000000000106 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		A20000010000000000000200 /* EncryptionKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionKeyManager.swift; sourceTree = "<group>"; };
+		A20000010000000000000201 /* ClipContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipContent.swift; sourceTree = "<group>"; };
+		A20000010000000000000202 /* PasteboardReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardReader.swift; sourceTree = "<group>"; };
+		A20000010000000000000203 /* NSImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Resize.swift"; sourceTree = "<group>"; };
+		A20000010000000000000204 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000010000000000000102 /* ClipItem.swift */,
+				A20000010000000000000201 /* ClipContent.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -112,6 +123,9 @@
 			children = (
 				A20000010000000000000103 /* DatabaseService.swift */,
 				A20000010000000000000104 /* ClipboardMonitor.swift */,
+				A20000010000000000000200 /* EncryptionKeyManager.swift */,
+				A20000010000000000000202 /* PasteboardReader.swift */,
+				A20000010000000000000204 /* DataCleanupService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -143,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000010000000000000101 /* String+Truncate.swift */,
+				A20000010000000000000203 /* NSImage+Resize.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -287,6 +302,11 @@
 				A10000010000000000000104 /* ClipboardMonitor.swift in Sources */,
 				A10000010000000000000105 /* StatusBarController.swift in Sources */,
 				A10000010000000000000106 /* main.swift in Sources */,
+				A10000010000000000000200 /* EncryptionKeyManager.swift in Sources */,
+				A10000010000000000000201 /* ClipContent.swift in Sources */,
+				A10000010000000000000202 /* PasteboardReader.swift in Sources */,
+				A10000010000000000000203 /* NSImage+Resize.swift in Sources */,
+				A10000010000000000000204 /* DataCleanupService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
