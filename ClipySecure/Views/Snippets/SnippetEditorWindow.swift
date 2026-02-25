@@ -3,7 +3,8 @@ import SwiftUI
 
 @MainActor
 final class SnippetEditorWindow {
-    private var panel: NSPanel?
+    private var window: NSWindow?
+    private var hostingController: NSHostingController<SnippetEditorView>?
     private let viewModel: SnippetEditorViewModel
 
     init(viewModel: SnippetEditorViewModel) {
@@ -11,35 +12,35 @@ final class SnippetEditorWindow {
     }
 
     func showWindow() {
-        if let existing = panel {
+        if let existing = window {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let panel = NSPanel(
+        let controller = NSHostingController(rootView: SnippetEditorView(viewModel: viewModel))
+        hostingController = controller
+
+        let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
-            defer: false
+            defer: true
         )
-        panel.title = "Snippet Editor"
-        panel.isFloatingPanel = false
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.center()
-        panel.minSize = NSSize(width: 500, height: 350)
+        window.title = "Snippet Editor"
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.minSize = NSSize(width: 500, height: 350)
+        window.contentViewController = controller
 
-        let hostingView = NSHostingView(rootView: SnippetEditorView(viewModel: viewModel))
-        panel.contentView = hostingView
-
-        panel.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        self.panel = panel
+        self.window = window
     }
 
     func close() {
-        panel?.close()
-        panel = nil
+        window?.close()
+        window = nil
+        hostingController = nil
     }
 }
