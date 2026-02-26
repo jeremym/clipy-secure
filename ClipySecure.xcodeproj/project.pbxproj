@@ -29,6 +29,10 @@
 		A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000303 /* SnippetEditorWindow.swift */; };
 		A10000010000000000000304 /* SnippetEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000304 /* SnippetEditorView.swift */; };
 		A10000010000000000000305 /* SnippetImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000305 /* SnippetImportExport.swift */; };
+		A10000010000000000000400 /* HotKeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000400 /* HotKeyService.swift */; };
+		A10000010000000000000401 /* PasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000401 /* PasteService.swift */; };
+		A10000010000000000000402 /* AccessibilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000402 /* AccessibilityService.swift */; };
+		A10000010000000000000021 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A60000010000000000000002 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +71,9 @@
 		A20000010000000000000303 /* SnippetEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorWindow.swift; sourceTree = "<group>"; };
 		A20000010000000000000304 /* SnippetEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorView.swift; sourceTree = "<group>"; };
 		A20000010000000000000305 /* SnippetImportExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetImportExport.swift; sourceTree = "<group>"; };
+		A20000010000000000000400 /* HotKeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyService.swift; sourceTree = "<group>"; };
+		A20000010000000000000401 /* PasteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteService.swift; sourceTree = "<group>"; };
+		A20000010000000000000402 /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +82,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000010000000000000020 /* GRDB in Frameworks */,
+				A10000010000000000000021 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -141,6 +149,9 @@
 				A20000010000000000000202 /* PasteboardReader.swift */,
 				A20000010000000000000204 /* DataCleanupService.swift */,
 				A20000010000000000000305 /* SnippetImportExport.swift */,
+				A20000010000000000000400 /* HotKeyService.swift */,
+				A20000010000000000000401 /* PasteService.swift */,
+				A20000010000000000000402 /* AccessibilityService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -241,6 +252,7 @@
 			name = ClipySecure;
 			packageProductDependencies = (
 				A60000010000000000000001 /* GRDB */,
+				A60000010000000000000002 /* KeyboardShortcuts */,
 			);
 			productName = ClipySecure;
 			productReference = A20000010000000000000005 /* ClipySecure.app */;
@@ -293,6 +305,7 @@
 			mainGroup = A70000010000000000000001;
 			packageReferences = (
 				A60000020000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				A60000020000000000000002 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 			);
 			productRefGroup = A70000010000000000000009 /* Products */;
 			projectDirPath = "";
@@ -339,6 +352,9 @@
 				A10000010000000000000303 /* SnippetEditorWindow.swift in Sources */,
 				A10000010000000000000304 /* SnippetEditorView.swift in Sources */,
 				A10000010000000000000305 /* SnippetImportExport.swift in Sources */,
+				A10000010000000000000400 /* HotKeyService.swift in Sources */,
+				A10000010000000000000401 /* PasteService.swift in Sources */,
+				A10000010000000000000402 /* AccessibilityService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -614,6 +630,14 @@
 				minimumVersion = 7.0.0;
 			};
 		};
+		A60000020000000000000002 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -621,6 +645,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A60000020000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		A60000010000000000000002 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A60000020000000000000002 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
