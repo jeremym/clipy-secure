@@ -9,7 +9,22 @@ struct SnippetEditorView: View {
         } detail: {
             detail
         }
-        .frame(minWidth: 500, minHeight: 350)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: viewModel.addFolder) {
+                    Label("Add Folder", systemImage: "folder.badge.plus")
+                }
+                Button(action: viewModel.addSnippet) {
+                    Label("Add Snippet", systemImage: "doc.badge.plus")
+                }
+                .disabled(viewModel.selectedFolderId == nil)
+                Button(action: viewModel.deleteSelected) {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(viewModel.selectedFolderId == nil && viewModel.selectedSnippetId == nil)
+            }
+        }
+        .frame(minWidth: 600, minHeight: 450)
     }
 
     // MARK: - Sidebar
@@ -33,21 +48,6 @@ struct SnippetEditorView: View {
             }
         }
         .listStyle(.sidebar)
-        .toolbar {
-            ToolbarItemGroup {
-                Button(action: viewModel.addFolder) {
-                    Label("Add Folder", systemImage: "folder.badge.plus")
-                }
-                Button(action: viewModel.addSnippet) {
-                    Label("Add Snippet", systemImage: "doc.badge.plus")
-                }
-                .disabled(viewModel.selectedFolderId == nil)
-                Button(action: viewModel.deleteSelected) {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(viewModel.selectedFolderId == nil && viewModel.selectedSnippetId == nil)
-            }
-        }
         .onChange(of: viewModel.selectedSnippetId) { _, newValue in
             if let snippetId = newValue,
                let snippet = viewModel.allSnippets.first(where: { $0.id == snippetId }),

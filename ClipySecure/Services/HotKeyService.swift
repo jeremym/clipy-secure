@@ -12,10 +12,16 @@ extension KeyboardShortcuts.Name {
 final class HotKeyService {
     private let statusBarController: StatusBarController
     private let databaseService: DatabaseService
+    private let historyPanelController: HistoryPanelController?
 
-    init(statusBarController: StatusBarController, databaseService: DatabaseService) {
+    init(
+        statusBarController: StatusBarController,
+        databaseService: DatabaseService,
+        historyPanelController: HistoryPanelController? = nil
+    ) {
         self.statusBarController = statusBarController
         self.databaseService = databaseService
+        self.historyPanelController = historyPanelController
         registerShortcuts()
     }
 
@@ -25,7 +31,12 @@ final class HotKeyService {
         }
 
         KeyboardShortcuts.onKeyUp(for: .toggleHistoryMenu) { [weak self] in
-            self?.statusBarController.popUpHistoryMenu()
+            // Use history panel (with search) instead of menu popup
+            if let panel = self?.historyPanelController {
+                panel.togglePanel()
+            } else {
+                self?.statusBarController.popUpHistoryMenu()
+            }
         }
 
         KeyboardShortcuts.onKeyUp(for: .toggleSnippetMenu) { [weak self] in

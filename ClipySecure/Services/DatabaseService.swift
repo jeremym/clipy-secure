@@ -84,6 +84,40 @@ final class DatabaseService: Sendable {
             }
         }
 
+        migrator.registerMigration("v4-createExcludedApp") { db in
+            try db.create(table: "excludedApp") { t in
+                t.primaryKey("id", .text)
+                t.column("bundleId", .text).notNull().unique()
+                t.column("appName", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v5-createFTS5") { db in
+            // Original content-synced FTS5 — broken with text PKs, replaced by v6
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE IF NOT EXISTS clipItemFts
+                USING fts5(title, stringValue, content=clipItem, content_rowid=rowid)
+                """)
+        }
+
+        migrator.registerMigration("v6-fixFTS5Standalone") { db in
+            // Drop the broken content-synced FTS table
+            try db.execute(sql: "DROP TABLE IF EXISTS clipItemFts")
+
+            // Create standalone FTS5 table with clipId for joining
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE clipItemFts
+                USING fts5(clipId UNINDEXED, title, stringValue)
+                """)
+
+            // Populate from existing data
+            try db.execute(sql: """
+                INSERT INTO clipItemFts(clipId, title, stringValue)
+                SELECT id, title, COALESCE(stringValue, '') FROM clipItem
+                """)
+        }
+
         try migrator.migrate(dbQueue)
     }
 
@@ -97,8 +131,24 @@ final class DatabaseService: Sendable {
             {
                 existing.updatedAt = Date()
                 try existing.update(db)
+
+                // Update FTS entry
+                try db.execute(
+                    sql: "DELETE FROM clipItemFts WHERE clipId = ?",
+                    arguments: [existing.id]
+                )
+                try db.execute(
+                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [existing.id, existing.title, existing.stringValue ?? ""]
+                )
             } else {
                 try clip.insert(db)
+
+                // Add FTS entry
+                try db.execute(
+                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [clip.id, clip.title, clip.stringValue ?? ""]
+                )
             }
         }
     }
@@ -113,13 +163,23 @@ final class DatabaseService: Sendable {
     }
 
     func deleteAll() throws {
-        _ = try dbQueue.write { db in
+        try dbQueue.write { db in
             try ClipItem.deleteAll(db)
+            try db.execute(sql: "DELETE FROM clipItemFts")
         }
     }
 
     func deleteOldest(keeping limit: Int) throws {
         try dbQueue.write { db in
+            // Clean up FTS entries for clips about to be deleted
+            try db.execute(
+                sql: """
+                    DELETE FROM clipItemFts WHERE clipId NOT IN (
+                        SELECT id FROM clipItem ORDER BY updatedAt DESC LIMIT ?
+                    )
+                    """,
+                arguments: [limit]
+            )
             try db.execute(
                 sql: """
                     DELETE FROM clipItem WHERE id NOT IN (
@@ -195,4 +255,59 @@ final class DatabaseService: Sendable {
             )
         }
     }
+
+    // MARK: - Excluded App CRUD
+
+    func fetchExcludedApps() throws -> [ExcludedApp] {
+        try dbQueue.read { db in
+            try ExcludedApp
+                .order(Column("appName").asc)
+                .fetchAll(db)
+        }
+    }
+
+    func addExcludedApp(bundleId: String, appName: String) throws {
+        let app = ExcludedApp(bundleId: bundleId, appName: appName)
+        try dbQueue.write { db in
+            try app.insert(db)
+        }
+    }
+
+    func removeExcludedApp(id: String) throws {
+        _ = try dbQueue.write { db in
+            try ExcludedApp.deleteOne(db, id: id)
+        }
+    }
+
+    func isAppExcluded(bundleId: String) throws -> Bool {
+        try dbQueue.read { db in
+            try ExcludedApp
+                .filter(Column("bundleId") == bundleId)
+                .fetchCount(db) > 0
+        }
+    }
+
+    // MARK: - FTS5 Search
+
+    func searchClips(query: String, limit: Int = 50) throws -> [ClipItem] {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return try fetchHistory(limit: limit)
+        }
+
+        // Escape special FTS5 characters and add prefix matching
+        let sanitized = query
+            .replacingOccurrences(of: "\"", with: "\"\"")
+        let ftsQuery = "\"\(sanitized)\"*"
+
+        return try dbQueue.read { db in
+            try ClipItem.fetchAll(db, sql: """
+                SELECT clipItem.* FROM clipItem
+                JOIN clipItemFts ON clipItemFts.clipId = clipItem.id
+                WHERE clipItemFts MATCH ?
+                ORDER BY clipItem.updatedAt DESC
+                LIMIT ?
+                """, arguments: [ftsQuery, limit])
+        }
+    }
+
 }

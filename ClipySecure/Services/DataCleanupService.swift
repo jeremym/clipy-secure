@@ -1,3 +1,4 @@
+import Defaults
 import Foundation
 import GRDB
 
@@ -39,10 +40,12 @@ final class DataCleanupService: Sendable {
         }
     }
 
-    func runCleanup(historyLimit: Int = Constants.defaultHistoryLimit,
-                    expirationInterval: TimeInterval? = nil) throws {
-        if let interval = expirationInterval {
-            try deleteExpired(olderThan: interval)
+    func runCleanup() throws {
+        let historyLimit = Defaults[.maxHistorySize]
+        let expirationInterval = Defaults[.historyExpirationSeconds]
+
+        if expirationInterval > 0 {
+            try deleteExpired(olderThan: expirationInterval)
         }
         try enforceLimit(historyLimit)
     }

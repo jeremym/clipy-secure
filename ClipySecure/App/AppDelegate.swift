@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var accessibilityService: AccessibilityService?
     private var pasteService: PasteService?
     private var hotKeyService: HotKeyService?
+    private var excludeAppService: ExcludeAppService?
+    private var preferencesWindow: PreferencesWindow?
+    private var historyPanelController: HistoryPanelController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -23,7 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Run cleanup on launch
             try? cleanup.runCleanup()
 
-            let monitor = ClipboardMonitor(databaseService: dbService)
+            // Set up app exclusion service
+            let excludeService = ExcludeAppService(databaseService: dbService)
+            excludeAppService = excludeService
+
+            let monitor = ClipboardMonitor(
+                databaseService: dbService,
+                excludeAppService: excludeService
+            )
             clipboardMonitor = monitor
 
             // Set up accessibility and paste services
@@ -47,10 +57,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             snippetEditorWindow = editorWindow
             statusBar.setSnippetEditorWindow(editorWindow)
 
+            // Set up preferences window
+            let prefs = PreferencesWindow(databaseService: dbService)
+            preferencesWindow = prefs
+            statusBar.setPreferencesWindow(prefs)
+
+            // Set up history panel
+            let historyPanel = HistoryPanelController(
+                databaseService: dbService,
+                clipboardMonitor: monitor,
+                pasteService: paste
+            )
+            historyPanelController = historyPanel
+
             // Set up global hotkeys
             let hotKeys = HotKeyService(
                 statusBarController: statusBar,
-                databaseService: dbService
+                databaseService: dbService,
+                historyPanelController: historyPanel
             )
             hotKeyService = hotKeys
 

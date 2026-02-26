@@ -1,4 +1,5 @@
 import AppKit
+import Defaults
 import GRDB
 
 @MainActor
@@ -14,6 +15,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var observationTask: Task<Void, Never>?
     private var snippetObservationTask: Task<Void, Never>?
     private var snippetEditorWindow: SnippetEditorWindow?
+    private var preferencesWindow: PreferencesWindow?
 
     private enum MenuMode {
         case full
@@ -40,6 +42,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     func setSnippetEditorWindow(_ window: SnippetEditorWindow) {
         self.snippetEditorWindow = window
+    }
+
+    func setPreferencesWindow(_ window: PreferencesWindow) {
+        self.preferencesWindow = window
     }
 
     private func setupStatusBar() {
@@ -69,7 +75,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let observation = ValueObservation.tracking { db in
             try ClipItem
                 .order(Column("updatedAt").desc)
-                .limit(Constants.defaultHistoryLimit)
+                .limit(500) // Fetch more than needed; menu building trims to settings
                 .fetchAll(db)
         }
 
@@ -158,15 +164,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func buildFullMenu(_ menu: NSMenu) {
         addHistoryItems(to: menu)
 
-        menu.addItem(NSMenuItem.separator())
+        if Defaults[.showClearHistoryItem] {
+            menu.addItem(NSMenuItem.separator())
 
-        let clearItem = NSMenuItem(
-            title: "Clear All",
-            action: #selector(clearAllClicked(_:)),
-            keyEquivalent: ""
-        )
-        clearItem.target = self
-        menu.addItem(clearItem)
+            let clearItem = NSMenuItem(
+                title: "Clear All",
+                action: #selector(clearAllClicked(_:)),
+                keyEquivalent: ""
+            )
+            clearItem.target = self
+            menu.addItem(clearItem)
+        }
 
         // Snippet section
         menu.addItem(NSMenuItem.separator())
@@ -184,6 +192,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        let prefsItem = NSMenuItem(
+            title: "Preferences\u{2026}",
+            action: #selector(preferencesClicked(_:)),
+            keyEquivalent: ","
+        )
+        prefsItem.target = self
+        menu.addItem(prefsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(NSMenuItem(
             title: "Quit",
             action: #selector(NSApplication.terminate(_:)),
@@ -194,15 +212,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func buildHistoryMenu(_ menu: NSMenu) {
         addHistoryItems(to: menu)
 
-        menu.addItem(NSMenuItem.separator())
+        if Defaults[.showClearHistoryItem] {
+            menu.addItem(NSMenuItem.separator())
 
-        let clearItem = NSMenuItem(
-            title: "Clear All",
-            action: #selector(clearAllClicked(_:)),
-            keyEquivalent: ""
-        )
-        clearItem.target = self
-        menu.addItem(clearItem)
+            let clearItem = NSMenuItem(
+                title: "Clear All",
+                action: #selector(clearAllClicked(_:)),
+                keyEquivalent: ""
+            )
+            clearItem.target = self
+            menu.addItem(clearItem)
+        }
     }
 
     private func buildSnippetsMenu(_ menu: NSMenu) {
@@ -228,14 +248,49 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Menu Item Helpers
 
     private func addHistoryItems(to menu: NSMenu) {
-        if historyItems.isEmpty {
+        let maxHistorySize = Defaults[.maxHistorySize]
+        let displayItems = Array(historyItems.prefix(maxHistorySize))
+
+        if displayItems.isEmpty {
             let emptyItem = NSMenuItem(title: "No History", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
-        } else {
-            for (index, item) in historyItems.enumerated() {
-                let menuItem = buildMenuItem(for: item, at: index)
-                menu.addItem(menuItem)
+            return
+        }
+
+        let inlineCount = Defaults[.numberOfItemsInline]
+        let folderSize = Defaults[.numberOfItemsInFolder]
+
+        // If inlineCount is 0, show all items inline
+        let itemsInline = inlineCount == 0 ? displayItems.count : min(inlineCount, displayItems.count)
+
+        // Add inline items
+        for index in 0..<itemsInline {
+            let menuItem = buildMenuItem(for: displayItems[index], at: index)
+            menu.addItem(menuItem)
+        }
+
+        // Add remaining items in numbered folders
+        if itemsInline < displayItems.count {
+            let remaining = Array(displayItems[itemsInline...])
+            let chunks = remaining.chunked(into: folderSize)
+
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                let startNum = itemsInline + (chunkIndex * folderSize) + 1
+                let endNum = startNum + chunk.count - 1
+                let folderTitle = "History \(startNum)-\(endNum)"
+
+                let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
+                let submenu = NSMenu(title: folderTitle)
+
+                for (offset, item) in chunk.enumerated() {
+                    let globalIndex = itemsInline + (chunkIndex * folderSize) + offset
+                    let menuItem = buildMenuItem(for: item, at: globalIndex)
+                    submenu.addItem(menuItem)
+                }
+
+                folderItem.submenu = submenu
+                menu.addItem(folderItem)
             }
         }
     }
@@ -270,16 +325,33 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Menu Item Builder
 
     private func buildMenuItem(for item: ClipItem, at index: Int) -> NSMenuItem {
+        let maxLen = Defaults[.menuItemTitleMaxLength]
+        let showNumbers = Defaults[.showNumbersInMenu]
+        let showImages = Defaults[.showImagesInMenu]
+        let showTooltips = Defaults[.showTooltips]
+        let tooltipMaxLen = Defaults[.tooltipMaxLength]
+
+        // Truncate title to configured max length
+        let displayTitle = String(item.title.prefix(maxLen))
+
+        let keyEquiv: String
+        if showNumbers && index < 9 {
+            keyEquiv = "\(index + 1)"
+        } else {
+            keyEquiv = ""
+        }
+
         let menuItem = NSMenuItem(
-            title: item.title,
+            title: displayTitle,
             action: #selector(historyItemClicked(_:)),
-            keyEquivalent: index < 9 ? "\(index + 1)" : ""
+            keyEquivalent: keyEquiv
         )
         menuItem.target = self
         menuItem.tag = index
 
         // Show thumbnail for image clips
-        if item.primaryType == ClipContentType.tiff.rawValue,
+        if showImages,
+           item.primaryType == ClipContentType.tiff.rawValue,
            let data = item.imageData,
            let image = NSImage(data: data)
         {
@@ -291,15 +363,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         if let typeStr = item.primaryType as String? {
             switch typeStr {
             case ClipContentType.rtf.rawValue, ClipContentType.rtfd.rawValue:
-                menuItem.title = "\u{1F4DD} " + item.title
+                menuItem.title = "\u{1F4DD} " + menuItem.title
             case ClipContentType.pdf.rawValue:
-                menuItem.title = "\u{1F4C4} " + item.title
+                menuItem.title = "\u{1F4C4} " + menuItem.title
             case ClipContentType.filenames.rawValue:
-                menuItem.title = "\u{1F4C1} " + item.title
+                menuItem.title = "\u{1F4C1} " + menuItem.title
             case ClipContentType.url.rawValue:
-                menuItem.title = "\u{1F517} " + item.title
+                menuItem.title = "\u{1F517} " + menuItem.title
             case ClipContentType.tiff.rawValue:
-                menuItem.title = "\u{1F5BC} " + item.title
+                menuItem.title = "\u{1F5BC} " + menuItem.title
             default:
                 break
             }
@@ -308,6 +380,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // Pin indicator
         if item.isPinned {
             menuItem.title = "\u{1F4CC} " + menuItem.title
+        }
+
+        // Tooltip
+        if showTooltips, let str = item.stringValue {
+            menuItem.toolTip = String(str.prefix(tooltipMaxLen))
         }
 
         return menuItem
@@ -357,6 +434,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)
         }
 
+        // Reorder after paste: update the item's timestamp so it moves to top
+        if Defaults[.reorderAfterPaste] {
+            var updated = item
+            updated.updatedAt = Date()
+            try? databaseService.save(clip: updated)
+        }
+
         // Auto-paste with delay to let menu dismiss and target app regain focus
         Task {
             try? await Task.sleep(for: .milliseconds(100))
@@ -386,7 +470,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         snippetEditorWindow?.showWindow()
     }
 
+    @objc private func preferencesClicked(_ sender: NSMenuItem) {
+        preferencesWindow?.showWindow()
+    }
+
     @objc private func clearAllClicked(_ sender: NSMenuItem) {
         try? databaseService.deleteAll()
+    }
+}
+
+// MARK: - Array chunking helper
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }
