@@ -32,10 +32,15 @@ final class SnippetEditorWindow {
         window.center()
         window.minSize = NSSize(width: 500, height: 350)
         window.contentViewController = controller
-
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
         self.window = window
+
+        // Defer display to next run loop tick to avoid layout recursion on macOS 26.
+        // Setting contentViewController triggers SwiftUI layout; showing the window
+        // in the same tick triggers a second pass, causing recursion.
+        Task {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func close() {
