@@ -5,10 +5,10 @@ enum PasteboardReader: Sendable {
     private static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
     @MainActor
-    static func read(from pasteboard: NSPasteboard = .general) -> ClipContent? {
+    static func read(from pasteboard: NSPasteboard = .general, respectConcealedType: Bool = true) -> ClipContent? {
         guard let types = pasteboard.types else { return nil }
 
-        if types.contains(concealedType) {
+        if respectConcealedType, types.contains(concealedType) {
             return nil
         }
 
