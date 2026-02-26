@@ -94,14 +94,27 @@ final class DatabaseService: Sendable {
         }
 
         migrator.registerMigration("v5-createFTS5") { db in
+            // Original content-synced FTS5 — broken with text PKs, replaced by v6
             try db.execute(sql: """
                 CREATE VIRTUAL TABLE IF NOT EXISTS clipItemFts
                 USING fts5(title, stringValue, content=clipItem, content_rowid=rowid)
                 """)
+        }
 
-            // Populate FTS index from existing data
+        migrator.registerMigration("v6-fixFTS5Standalone") { db in
+            // Drop the broken content-synced FTS table
+            try db.execute(sql: "DROP TABLE IF EXISTS clipItemFts")
+
+            // Create standalone FTS5 table with clipId for joining
             try db.execute(sql: """
-                INSERT INTO clipItemFts(clipItemFts) VALUES('rebuild')
+                CREATE VIRTUAL TABLE clipItemFts
+                USING fts5(clipId UNINDEXED, title, stringValue)
+                """)
+
+            // Populate from existing data
+            try db.execute(sql: """
+                INSERT INTO clipItemFts(clipId, title, stringValue)
+                SELECT id, title, COALESCE(stringValue, '') FROM clipItem
                 """)
         }
 
@@ -118,14 +131,25 @@ final class DatabaseService: Sendable {
             {
                 existing.updatedAt = Date()
                 try existing.update(db)
+
+                // Update FTS entry
+                try db.execute(
+                    sql: "DELETE FROM clipItemFts WHERE clipId = ?",
+                    arguments: [existing.id]
+                )
+                try db.execute(
+                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [existing.id, existing.title, existing.stringValue ?? ""]
+                )
             } else {
                 try clip.insert(db)
-            }
 
-            // Rebuild FTS index
-            try db.execute(sql: """
-                INSERT INTO clipItemFts(clipItemFts) VALUES('rebuild')
-                """)
+                // Add FTS entry
+                try db.execute(
+                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [clip.id, clip.title, clip.stringValue ?? ""]
+                )
+            }
         }
     }
 
@@ -139,13 +163,23 @@ final class DatabaseService: Sendable {
     }
 
     func deleteAll() throws {
-        _ = try dbQueue.write { db in
+        try dbQueue.write { db in
             try ClipItem.deleteAll(db)
+            try db.execute(sql: "DELETE FROM clipItemFts")
         }
     }
 
     func deleteOldest(keeping limit: Int) throws {
         try dbQueue.write { db in
+            // Clean up FTS entries for clips about to be deleted
+            try db.execute(
+                sql: """
+                    DELETE FROM clipItemFts WHERE clipId NOT IN (
+                        SELECT id FROM clipItem ORDER BY updatedAt DESC LIMIT ?
+                    )
+                    """,
+                arguments: [limit]
+            )
             try db.execute(
                 sql: """
                     DELETE FROM clipItem WHERE id NOT IN (
@@ -268,7 +302,7 @@ final class DatabaseService: Sendable {
         return try dbQueue.read { db in
             try ClipItem.fetchAll(db, sql: """
                 SELECT clipItem.* FROM clipItem
-                JOIN clipItemFts ON clipItemFts.rowid = clipItem.rowid
+                JOIN clipItemFts ON clipItemFts.clipId = clipItem.id
                 WHERE clipItemFts MATCH ?
                 ORDER BY clipItem.updatedAt DESC
                 LIMIT ?
@@ -276,14 +310,4 @@ final class DatabaseService: Sendable {
         }
     }
 
-    // MARK: - FTS Index Maintenance
-
-    func updateFTSIndex(for clip: ClipItem) throws {
-        try dbQueue.write { db in
-            // The content-synced FTS table needs manual updates
-            try db.execute(sql: """
-                INSERT INTO clipItemFts(clipItemFts) VALUES('rebuild')
-                """)
-        }
-    }
 }
