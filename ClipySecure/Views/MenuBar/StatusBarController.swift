@@ -3,7 +3,7 @@ import GRDB
 
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
-    private var statusItem: NSStatusItem!
+    private var statusItem: NSStatusItem?
     private let databaseService: DatabaseService
     private let clipboardMonitor: ClipboardMonitor
     private let pasteService: PasteService
@@ -43,9 +43,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = item
 
-        if let button = statusItem.button {
+        if let button = item.button {
             if let image = NSImage(systemSymbolName: "paperclip", accessibilityDescription: "ClipySecure") {
                 image.isTemplate = true
                 image.size = NSSize(width: 18, height: 18)
@@ -54,9 +55,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             button.toolTip = "ClipySecure"
         }
 
-        let menu = NSMenu()
-        menu.delegate = self
-        statusItem.menu = menu
+        // Defer menu assignment to avoid layout recursion on macOS 26.
+        // The status item needs to complete its initial layout pass first.
+        Task { [weak self] in
+            guard let self else { return }
+            let menu = NSMenu()
+            menu.delegate = self
+            item.menu = menu
+        }
     }
 
     private func startObservation() {
@@ -112,17 +118,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     func popUpMainMenu() {
         menuMode = .full
-        statusItem.button?.performClick(nil)
+        statusItem?.button?.performClick(nil)
     }
 
     func popUpHistoryMenu() {
         menuMode = .historyOnly
-        statusItem.button?.performClick(nil)
+        statusItem?.button?.performClick(nil)
     }
 
     func popUpSnippetMenu() {
         menuMode = .snippetsOnly
-        statusItem.button?.performClick(nil)
+        statusItem?.button?.performClick(nil)
     }
 
     // MARK: - NSMenuDelegate
