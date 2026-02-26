@@ -54,7 +54,7 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 580),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: true
@@ -89,6 +89,9 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
         selectedTab = tab
         window?.title = tab.label
 
+        // Preserve window position when switching tabs
+        let savedFrame = window?.frame
+
         let view: AnyView
         switch tab {
         case .general:
@@ -106,9 +109,14 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
         }
 
         let controller = NSHostingController(rootView:
-            view.frame(minWidth: 550, minHeight: 380)
+            view.frame(minWidth: 550, minHeight: 480)
         )
         window?.contentViewController = controller
+
+        // Restore window position after content swap
+        if let frame = savedFrame {
+            window?.setFrame(frame, display: true)
+        }
     }
 
     // MARK: - NSToolbarDelegate
