@@ -1,11 +1,46 @@
 import AppKit
 import SwiftUI
 
+private enum PreferencesTab: String, CaseIterable {
+    case general
+    case menu
+    case types
+    case shortcuts
+    case excludedApps
+    case privacy
+
+    var label: String {
+        switch self {
+        case .general: "General"
+        case .menu: "Menu"
+        case .types: "Types"
+        case .shortcuts: "Shortcuts"
+        case .excludedApps: "Excluded Apps"
+        case .privacy: "Privacy"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: "gear"
+        case .menu: "list.bullet"
+        case .types: "doc.on.clipboard"
+        case .shortcuts: "keyboard"
+        case .excludedApps: "xmark.app"
+        case .privacy: "lock.shield"
+        }
+    }
+
+    var itemIdentifier: NSToolbarItem.Identifier {
+        NSToolbarItem.Identifier("prefs.\(rawValue)")
+    }
+}
+
 @MainActor
-final class PreferencesWindow {
+final class PreferencesWindow: NSObject, NSToolbarDelegate {
     private var window: NSWindow?
-    private var hostingController: NSHostingController<PreferencesTabView>?
     private let databaseService: DatabaseService
+    private var selectedTab: PreferencesTab = .general
 
     init(databaseService: DatabaseService) {
         self.databaseService = databaseService
@@ -18,21 +53,24 @@ final class PreferencesWindow {
             return
         }
 
-        let tabView = PreferencesTabView(databaseService: databaseService)
-        let controller = NSHostingController(rootView: tabView)
-        hostingController = controller
-
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 550, height: 450),
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 480),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: true
         )
-        window.title = "Preferences"
         window.isReleasedWhenClosed = false
         window.center()
-        window.contentViewController = controller
+
+        let toolbar = NSToolbar(identifier: "PreferencesToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconAndLabel
+        toolbar.selectedItemIdentifier = selectedTab.itemIdentifier
+        window.toolbar = toolbar
+        window.toolbarStyle = .preference
+
         self.window = window
+        showTab(selectedTab)
 
         Task {
             window.makeKeyAndOrderFront(nil)
@@ -43,28 +81,71 @@ final class PreferencesWindow {
     func close() {
         window?.close()
         window = nil
-        hostingController = nil
     }
-}
 
-struct PreferencesTabView: View {
-    let databaseService: DatabaseService
+    // MARK: - Tab Switching
 
-    var body: some View {
-        TabView {
-            GeneralSettingsView()
-                .tabItem { Label("General", systemImage: "gear") }
-            MenuSettingsView()
-                .tabItem { Label("Menu", systemImage: "list.bullet") }
-            TypeSettingsView()
-                .tabItem { Label("Types", systemImage: "doc.on.clipboard") }
-            ShortcutSettingsView()
-                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
-            ExcludedAppsView(databaseService: databaseService)
-                .tabItem { Label("Excluded Apps", systemImage: "xmark.app") }
-            PrivacySettingsView(databaseService: databaseService)
-                .tabItem { Label("Privacy", systemImage: "lock.shield") }
+    private func showTab(_ tab: PreferencesTab) {
+        selectedTab = tab
+        window?.title = tab.label
+
+        let view: AnyView
+        switch tab {
+        case .general:
+            view = AnyView(GeneralSettingsView())
+        case .menu:
+            view = AnyView(MenuSettingsView())
+        case .types:
+            view = AnyView(TypeSettingsView())
+        case .shortcuts:
+            view = AnyView(ShortcutSettingsView())
+        case .excludedApps:
+            view = AnyView(ExcludedAppsView(databaseService: databaseService))
+        case .privacy:
+            view = AnyView(PrivacySettingsView(databaseService: databaseService))
         }
-        .frame(width: 520, height: 420)
+
+        let controller = NSHostingController(rootView:
+            view.frame(minWidth: 550, minHeight: 380)
+        )
+        window?.contentViewController = controller
+    }
+
+    // MARK: - NSToolbarDelegate
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard let tab = PreferencesTab.allCases.first(where: { $0.itemIdentifier == itemIdentifier }) else {
+            return nil
+        }
+
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = tab.label
+        item.image = NSImage(systemSymbolName: tab.icon, accessibilityDescription: tab.label)
+        item.target = self
+        item.action = #selector(toolbarItemClicked(_:))
+        return item
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesTab.allCases.map(\.itemIdentifier)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesTab.allCases.map(\.itemIdentifier)
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesTab.allCases.map(\.itemIdentifier)
+    }
+
+    @objc private func toolbarItemClicked(_ sender: NSToolbarItem) {
+        guard let tab = PreferencesTab.allCases.first(where: { $0.itemIdentifier == sender.itemIdentifier }) else {
+            return
+        }
+        showTab(tab)
     }
 }

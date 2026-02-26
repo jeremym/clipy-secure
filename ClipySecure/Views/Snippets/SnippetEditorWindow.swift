@@ -22,7 +22,7 @@ final class SnippetEditorWindow {
         hostingController = controller
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 550),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: true
@@ -30,7 +30,7 @@ final class SnippetEditorWindow {
         window.title = "Snippet Editor"
         window.isReleasedWhenClosed = false
         window.center()
-        window.minSize = NSSize(width: 500, height: 350)
+        window.minSize = NSSize(width: 550, height: 400)
         window.contentViewController = controller
         self.window = window
 
