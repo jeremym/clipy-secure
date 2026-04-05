@@ -168,7 +168,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(NSMenuItem.separator())
 
             let clearItem = NSMenuItem(
-                title: "Clear All",
+                title: String(localized: "Clear All"),
                 action: #selector(clearAllClicked(_:)),
                 keyEquivalent: ""
             )
@@ -183,7 +183,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let editSnippetsItem = NSMenuItem(
-            title: "Edit Snippets\u{2026}",
+            title: String(localized: "Edit Snippets\u{2026}"),
             action: #selector(editSnippetsClicked(_:)),
             keyEquivalent: ""
         )
@@ -193,7 +193,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let prefsItem = NSMenuItem(
-            title: "Preferences\u{2026}",
+            title: String(localized: "Preferences\u{2026}"),
             action: #selector(preferencesClicked(_:)),
             keyEquivalent: ","
         )
@@ -203,7 +203,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(
-            title: "Quit",
+            title: String(localized: "Quit"),
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         ))
@@ -216,7 +216,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(NSMenuItem.separator())
 
             let clearItem = NSMenuItem(
-                title: "Clear All",
+                title: String(localized: "Clear All"),
                 action: #selector(clearAllClicked(_:)),
                 keyEquivalent: ""
             )
@@ -229,7 +229,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         addSnippetMenuItems(to: menu)
 
         if menu.items.isEmpty {
-            let emptyItem = NSMenuItem(title: "No Snippets", action: nil, keyEquivalent: "")
+            let emptyItem = NSMenuItem(title: String(localized: "No Snippets"), action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
         }
@@ -237,7 +237,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let editSnippetsItem = NSMenuItem(
-            title: "Edit Snippets\u{2026}",
+            title: String(localized: "Edit Snippets\u{2026}"),
             action: #selector(editSnippetsClicked(_:)),
             keyEquivalent: ""
         )
@@ -252,7 +252,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let displayItems = Array(historyItems.prefix(maxHistorySize))
 
         if displayItems.isEmpty {
-            let emptyItem = NSMenuItem(title: "No History", action: nil, keyEquivalent: "")
+            let emptyItem = NSMenuItem(title: String(localized: "No History"), action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
             return
@@ -278,7 +278,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             for (chunkIndex, chunk) in chunks.enumerated() {
                 let startNum = itemsInline + (chunkIndex * folderSize) + 1
                 let endNum = startNum + chunk.count - 1
-                let folderTitle = "History \(startNum)-\(endNum)"
+                let folderTitle = String(localized: "History \(startNum)-\(endNum)")
 
                 let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
                 let submenu = NSMenu(title: folderTitle)

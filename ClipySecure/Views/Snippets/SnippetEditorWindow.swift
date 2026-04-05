@@ -27,7 +27,7 @@ final class SnippetEditorWindow {
             backing: .buffered,
             defer: true
         )
-        window.title = "Snippet Editor"
+        window.title = String(localized: "Snippet Editor")
         window.isReleasedWhenClosed = false
         window.center()
         window.minSize = NSSize(width: 600, height: 450)

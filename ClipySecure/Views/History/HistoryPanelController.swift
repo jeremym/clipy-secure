@@ -48,7 +48,7 @@ final class HistoryPanelController {
             backing: .buffered,
             defer: true
         )
-        panel.title = "Clipboard History"
+        panel.title = String(localized: "Clipboard History")
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false

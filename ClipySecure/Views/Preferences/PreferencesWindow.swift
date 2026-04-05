@@ -11,12 +11,12 @@ private enum PreferencesTab: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .general: "General"
-        case .menu: "Menu"
-        case .types: "Types"
-        case .shortcuts: "Shortcuts"
-        case .excludedApps: "Excluded Apps"
-        case .privacy: "Privacy"
+        case .general: String(localized: "General")
+        case .menu: String(localized: "Menu")
+        case .types: String(localized: "Types")
+        case .shortcuts: String(localized: "Shortcuts")
+        case .excludedApps: String(localized: "Excluded Apps")
+        case .privacy: String(localized: "Privacy")
         }
     }
 

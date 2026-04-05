@@ -59,10 +59,10 @@ private enum ExpirationOption: CaseIterable {
 
     var label: String {
         switch self {
-        case .never: "Never"
-        case .oneDay: "24 hours"
-        case .sevenDays: "7 days"
-        case .thirtyDays: "30 days"
+        case .never: String(localized: "Never")
+        case .oneDay: String(localized: "24 hours")
+        case .sevenDays: String(localized: "7 days")
+        case .thirtyDays: String(localized: "30 days")
         }
     }
 
@@ -78,8 +78,9 @@ private enum ExpirationOption: CaseIterable {
     static func from(seconds: TimeInterval) -> ExpirationOption {
         switch seconds {
         case 0: .never
-        case ...86400: .oneDay
-        case ...604_800: .sevenDays
+        case 86400: .oneDay
+        case 604_800: .sevenDays
+        case 2_592_000: .thirtyDays
         default: .thirtyDays
         }
     }
