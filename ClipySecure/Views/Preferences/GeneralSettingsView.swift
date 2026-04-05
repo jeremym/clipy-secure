@@ -1,4 +1,5 @@
 import Defaults
+import LaunchAtLogin
 import SwiftUI
 
 struct GeneralSettingsView: View {
@@ -23,11 +24,7 @@ struct GeneralSettingsView: View {
             }
 
             Section("Startup") {
-                Text("Launch at Login")
-                    .foregroundStyle(.secondary)
-                Text("(Available in Phase 6)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                LaunchAtLogin.Toggle(String(localized: "Launch at Login"))
             }
         }
         .formStyle(.grouped)

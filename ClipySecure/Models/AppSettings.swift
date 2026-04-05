@@ -17,6 +17,7 @@ extension Defaults.Keys {
     static let historyExpirationSeconds = Key<TimeInterval>("historyExpirationSeconds", default: 0)
     static let storeTypes = Key<Set<String>>("storeTypes", default: Set(ClipContentType.allCases.map(\.rawValue)))
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
+    static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
 }
 
 extension ClipContentType: CaseIterable {

@@ -1,4 +1,5 @@
 import Cocoa
+import Defaults
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -14,8 +15,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var excludeAppService: ExcludeAppService?
     private var preferencesWindow: PreferencesWindow?
     private var historyPanelController: HistoryPanelController?
+    private var onboardingWindow: OnboardingWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Defaults[.hasCompletedOnboarding] {
+            startServices()
+        } else {
+            showOnboarding()
+        }
+    }
+
+    private func showOnboarding() {
+        let onboarding = OnboardingWindow(onComplete: { [weak self] in
+            Defaults[.hasCompletedOnboarding] = true
+            self?.onboardingWindow = nil
+            self?.startServices()
+        })
+        onboardingWindow = onboarding
+        onboarding.showWindow()
+    }
+
+    private func startServices() {
         do {
             let dbService = try DatabaseService()
             databaseService = dbService
@@ -23,10 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let cleanup = DataCleanupService(dbQueue: dbService.dbQueue)
             dataCleanupService = cleanup
 
-            // Run cleanup on launch
             try? cleanup.runCleanup()
 
-            // Set up app exclusion service
             let excludeService = ExcludeAppService(databaseService: dbService)
             excludeAppService = excludeService
 
@@ -36,7 +54,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             clipboardMonitor = monitor
 
-            // Set up accessibility and paste services
             let accessibility = AccessibilityService()
             accessibilityService = accessibility
 
@@ -51,18 +68,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             statusBarController = statusBar
 
-            // Set up snippet editor
             let snippetVM = SnippetEditorViewModel(databaseService: dbService)
             let editorWindow = SnippetEditorWindow(viewModel: snippetVM)
             snippetEditorWindow = editorWindow
             statusBar.setSnippetEditorWindow(editorWindow)
 
-            // Set up preferences window
             let prefs = PreferencesWindow(databaseService: dbService)
             preferencesWindow = prefs
             statusBar.setPreferencesWindow(prefs)
 
-            // Set up history panel
             let historyPanel = HistoryPanelController(
                 databaseService: dbService,
                 clipboardMonitor: monitor,
@@ -70,7 +84,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             historyPanelController = historyPanel
 
-            // Set up global hotkeys
             let hotKeys = HotKeyService(
                 statusBarController: statusBar,
                 databaseService: dbService,
@@ -82,14 +95,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await monitor.startMonitoring()
             }
 
-            // Schedule periodic cleanup every 30 minutes
             cleanupTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak cleanup] _ in
                 try? cleanup?.runCleanup()
             }
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Failed to Initialize"
-            alert.informativeText = "ClipySecure could not start: \(error.localizedDescription)"
+            alert.messageText = String(localized: "Failed to Initialize")
+            alert.informativeText = String(localized: "ClipySecure could not start: \(error.localizedDescription)")
             alert.alertStyle = .critical
             alert.runModal()
             NSApplication.shared.terminate(nil)
