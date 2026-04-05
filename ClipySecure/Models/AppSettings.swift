@@ -2,9 +2,9 @@ import Defaults
 import Foundation
 
 extension Defaults.Keys {
-    static let maxHistorySize = Key<Int>("maxHistorySize", default: 30)
+    static let maxHistorySize = Key<Int>("maxHistorySize", default: 32)
     static let menuItemTitleMaxLength = Key<Int>("menuItemTitleMaxLength", default: 40)
-    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 0)
+    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 2)
     static let numberOfItemsInFolder = Key<Int>("numberOfItemsInFolder", default: 10)
     static let showNumbersInMenu = Key<Bool>("showNumbersInMenu", default: true)
     static let reorderAfterPaste = Key<Bool>("reorderAfterPaste", default: true)
@@ -18,6 +18,7 @@ extension Defaults.Keys {
     static let storeTypes = Key<Set<String>>("storeTypes", default: Set(ClipContentType.allCases.map(\.rawValue)))
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
+    static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
 }
 
 extension ClipContentType: CaseIterable {

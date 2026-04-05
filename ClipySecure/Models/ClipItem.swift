@@ -20,6 +20,8 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
     var urls: String?
     var sourceAppId: String?
     var isPinned: Bool
+    var isMemory: Bool
+    var memorizedAt: Date?
 
     // MARK: - Text-only initializer (Phase 1 compat)
 
@@ -37,6 +39,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
         self.updatedAt = Date()
         self.types = Self.encodeTypes([.string])
         self.isPinned = false
+        self.isMemory = false
     }
 
     // MARK: - Full content initializer (Phase 2)
@@ -51,6 +54,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
         self.imageData = content.imageData
         self.sourceAppId = content.sourceAppId
         self.isPinned = false
+        self.isMemory = false
         self.createdAt = Date()
         self.updatedAt = Date()
 

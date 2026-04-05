@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clipboardMonitor: ClipboardMonitor?
     private var statusBarController: StatusBarController?
     private var dataCleanupService: DataCleanupService?
-    private var cleanupTimer: Timer?
     private var snippetEditorWindow: SnippetEditorWindow?
     private var accessibilityService: AccessibilityService?
     private var pasteService: PasteService?
@@ -50,7 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             let monitor = ClipboardMonitor(
                 databaseService: dbService,
-                excludeAppService: excludeService
+                excludeAppService: excludeService,
+                dataCleanupService: cleanup
             )
             clipboardMonitor = monitor
 
@@ -95,9 +95,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await monitor.startMonitoring()
             }
 
-            cleanupTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak cleanup] _ in
-                try? cleanup?.runCleanup()
-            }
         } catch {
             let alert = NSAlert()
             alert.messageText = String(localized: "Failed to Initialize")
@@ -109,9 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        cleanupTimer?.invalidate()
-        cleanupTimer = nil
-
         if let monitor = clipboardMonitor {
             Task {
                 await monitor.stopMonitoring()

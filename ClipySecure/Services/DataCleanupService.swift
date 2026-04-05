@@ -15,7 +15,7 @@ final class DataCleanupService: Sendable {
             try db.execute(
                 sql: """
                     DELETE FROM clipItem
-                    WHERE isPinned = 0 AND updatedAt < ?
+                    WHERE isPinned = 0 AND isMemory = 0 AND updatedAt < ?
                     """,
                 arguments: [cutoff]
             )
@@ -29,8 +29,10 @@ final class DataCleanupService: Sendable {
                     DELETE FROM clipItem WHERE id NOT IN (
                         SELECT id FROM clipItem WHERE isPinned = 1
                         UNION ALL
+                        SELECT id FROM clipItem WHERE isMemory = 1
+                        UNION ALL
                         SELECT id FROM (
-                            SELECT id FROM clipItem WHERE isPinned = 0
+                            SELECT id FROM clipItem WHERE isPinned = 0 AND isMemory = 0
                             ORDER BY updatedAt DESC LIMIT ?
                         )
                     )
