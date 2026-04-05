@@ -104,6 +104,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             try ClipItem
                 .filter(Column("isMemory") == true)
                 .order(Column("memorizedAt").desc)
+                .limit(500)
                 .fetchAll(db)
         }
 
@@ -432,31 +433,35 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        let maxLen = Defaults[.menuItemTitleMaxLength]
-        let folderSize = Defaults[.numberOfItemsInFolder]
+        let maxMemorySize = Defaults[.maxMemorySize]
+        let inlineCount = Defaults[.numberOfMemoryItemsInline]
+        let folderSize = Defaults[.numberOfItemsPerMemoryFolder]
 
-        // All memory items get "m" prefix for type-ahead, numbered m1, m2, ...
-        if memoryItems.count <= folderSize {
-            // Few enough to show inline
-            for (index, item) in memoryItems.enumerated() {
-                let menuItem = buildMemoryMenuItem(for: item, label: "m\(index + 1)")
-                menu.addItem(menuItem)
+        let displayItems = Array(memoryItems.prefix(maxMemorySize))
+        let itemsInline = inlineCount == 0 ? displayItems.count : min(inlineCount, displayItems.count)
 
-                // Option-alternate: promote to snippet
-                let altItem = buildMemoryPromoteAlternate(for: item, label: "m\(index + 1)")
-                menu.addItem(altItem)
-            }
-        } else {
-            // Group into subfolders
-            let chunks = memoryItems.chunked(into: folderSize)
+        // Phase 1 — inline items labeled m1, m2, ...
+        for index in 0..<itemsInline {
+            let label = "m\(index + 1)"
+            let menuItem = buildMemoryMenuItem(for: displayItems[index], label: label)
+            menu.addItem(menuItem)
+
+            let altItem = buildMemoryPromoteAlternate(for: displayItems[index], label: label)
+            menu.addItem(altItem)
+        }
+
+        // Phase 2 — remaining items in folders
+        if itemsInline < displayItems.count {
+            let remaining = Array(displayItems[itemsInline...])
+            let chunks = remaining.chunked(into: folderSize)
+
             for (chunkIndex, chunk) in chunks.enumerated() {
-                let folderTitle = "m\(chunkIndex + 1)"
+                let folderTitle = "m\(itemsInline + chunkIndex + 1)"
                 let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
                 let submenu = NSMenu(title: folderTitle)
 
                 for (offset, item) in chunk.enumerated() {
-                    let globalIndex = chunkIndex * folderSize + offset
-                    let subLabel = "m\(globalIndex + 1)"
+                    let subLabel = "\(offset + 1)"
                     let menuItem = buildMemoryMenuItem(for: item, label: subLabel)
                     submenu.addItem(menuItem)
 
