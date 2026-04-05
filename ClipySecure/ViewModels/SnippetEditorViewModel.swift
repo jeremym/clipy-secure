@@ -9,6 +9,8 @@ final class SnippetEditorViewModel {
     var allSnippets: [Snippet] = []
     var selectedFolderId: String?
     var selectedSnippetId: String?
+    /// When true, the "root" section is selected (no folder)
+    var isRootSelected: Bool = false
 
     private let databaseService: DatabaseService
     private var observationTask: Task<Void, Never>?
@@ -20,9 +22,8 @@ final class SnippetEditorViewModel {
 
     // MARK: - Computed
 
-    var snippetsForSelectedFolder: [Snippet] {
-        guard let folderId = selectedFolderId else { return [] }
-        return allSnippets.filter { $0.folderId == folderId }
+    var rootSnippets: [Snippet] {
+        allSnippets.filter { $0.folderId == nil }
     }
 
     func snippets(inFolder folderId: String) -> [Snippet] {
@@ -68,6 +69,7 @@ final class SnippetEditorViewModel {
         try? databaseService.saveFolder(folder)
         selectedFolderId = folder.id
         selectedSnippetId = nil
+        isRootSelected = false
     }
 
     func deleteFolder(_ folderId: String) {
@@ -85,11 +87,27 @@ final class SnippetEditorViewModel {
         try? databaseService.saveFolder(folder)
     }
 
+    func updateFolderEnabled(_ folderId: String, isEnabled: Bool) {
+        guard var folder = folders.first(where: { $0.id == folderId }) else { return }
+        folder.isEnabled = isEnabled
+        folder.updatedAt = Date()
+        try? databaseService.saveFolder(folder)
+    }
+
     // MARK: - Snippet Actions
 
     func addSnippet() {
-        guard let folderId = selectedFolderId else { return }
-        let folderSnippets = snippets(inFolder: folderId)
+        let folderId: String?
+        let folderSnippets: [Snippet]
+
+        if isRootSelected || selectedFolderId == nil {
+            folderId = nil
+            folderSnippets = rootSnippets
+        } else {
+            folderId = selectedFolderId
+            folderSnippets = snippets(inFolder: selectedFolderId!)
+        }
+
         let nextIndex = (folderSnippets.last?.sortIndex ?? -1) + 1
         let snippet = Snippet(folderId: folderId, sortIndex: nextIndex)
         try? databaseService.saveSnippet(snippet)
@@ -128,5 +146,12 @@ final class SnippetEditorViewModel {
     func selectFolder(_ folderId: String?) {
         selectedFolderId = folderId
         selectedSnippetId = nil
+        isRootSelected = false
+    }
+
+    func selectRoot() {
+        selectedFolderId = nil
+        selectedSnippetId = nil
+        isRootSelected = true
     }
 }

@@ -176,21 +176,20 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(clearItem)
         }
 
-        // Snippet section
+        // Snippet section with header
         menu.addItem(NSMenuItem.separator())
         addSnippetMenuItems(to: menu)
 
+        // Bottom section: Edit Snippets, Preferences, Quit
         menu.addItem(NSMenuItem.separator())
 
         let editSnippetsItem = NSMenuItem(
             title: String(localized: "Edit Snippets\u{2026}"),
             action: #selector(editSnippetsClicked(_:)),
-            keyEquivalent: ""
+            keyEquivalent: "e"
         )
         editSnippetsItem.target = self
         menu.addItem(editSnippetsItem)
-
-        menu.addItem(NSMenuItem.separator())
 
         let prefsItem = NSMenuItem(
             title: String(localized: "Preferences\u{2026}"),
@@ -199,8 +198,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
         prefsItem.target = self
         menu.addItem(prefsItem)
-
-        menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(
             title: String(localized: "Quit"),
@@ -239,7 +236,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let editSnippetsItem = NSMenuItem(
             title: String(localized: "Edit Snippets\u{2026}"),
             action: #selector(editSnippetsClicked(_:)),
-            keyEquivalent: ""
+            keyEquivalent: "e"
         )
         editSnippetsItem.target = self
         menu.addItem(editSnippetsItem)
@@ -264,28 +261,38 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // If inlineCount is 0, show all items inline
         let itemsInline = inlineCount == 0 ? displayItems.count : min(inlineCount, displayItems.count)
 
-        // Add inline items
+        // Inline items prefixed with letter keys for type-ahead: "a  Title", "b  Title", ...
+        // Pressing "a" in the open menu type-selects this item; Enter to paste.
+        let letterKeys = "abcdefghijklmnopqrstuvwxyz"
         for index in 0..<itemsInline {
-            let menuItem = buildMenuItem(for: displayItems[index], at: index)
+            let prefix = index < letterKeys.count
+                ? String(letterKeys[letterKeys.index(letterKeys.startIndex, offsetBy: index)])
+                : ""
+            let menuItem = buildMenuItem(for: displayItems[index], at: index, shortcutPrefix: prefix)
             menu.addItem(menuItem)
         }
 
-        // Add remaining items in numbered folders
+        // Remaining items in folders titled "1", "2", "3", ...
+        // Press the digit to type-select the folder, then Right arrow to open it.
+        // Items inside submenus also get prefixes: 1-9, 0, a-z.
         if itemsInline < displayItems.count {
             let remaining = Array(displayItems[itemsInline...])
             let chunks = remaining.chunked(into: folderSize)
 
+            let submenuKeys = "1234567890abcdefghijklmnopqrstuvwxyz"
+
             for (chunkIndex, chunk) in chunks.enumerated() {
-                let startNum = itemsInline + (chunkIndex * folderSize) + 1
-                let endNum = startNum + chunk.count - 1
-                let folderTitle = String(localized: "History \(startNum)-\(endNum)")
+                let folderTitle = "\(chunkIndex + 1)"
 
                 let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
                 let submenu = NSMenu(title: folderTitle)
 
                 for (offset, item) in chunk.enumerated() {
                     let globalIndex = itemsInline + (chunkIndex * folderSize) + offset
-                    let menuItem = buildMenuItem(for: item, at: globalIndex)
+                    let subPrefix = offset < submenuKeys.count
+                        ? String(submenuKeys[submenuKeys.index(submenuKeys.startIndex, offsetBy: offset)])
+                        : ""
+                    let menuItem = buildMenuItem(for: item, at: globalIndex, shortcutPrefix: subPrefix)
                     submenu.addItem(menuItem)
                 }
 
@@ -296,9 +303,43 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func addSnippetMenuItems(to menu: NSMenu) {
+        let rootSnippets = allSnippets.filter { $0.folderId == nil && $0.isEnabled }
         let enabledFolders = snippetFolders.filter(\.isEnabled)
-        guard !enabledFolders.isEmpty else { return }
+        let hasAnySnippets = !rootSnippets.isEmpty || enabledFolders.contains { folder in
+            allSnippets.contains { $0.folderId == folder.id && $0.isEnabled }
+        }
 
+        // "Snippets" section header
+        let headerItem = NSMenuItem(title: String(localized: "Snippets"), action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        // Use the attributed title for a subtle header style
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        headerItem.attributedTitle = NSAttributedString(string: String(localized: "Snippets"), attributes: attrs)
+        menu.addItem(headerItem)
+
+        guard hasAnySnippets else {
+            let emptyItem = NSMenuItem(title: String(localized: "No Snippets"), action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+            return
+        }
+
+        // Root-level snippets (no folder)
+        for snippet in rootSnippets {
+            let snippetItem = NSMenuItem(
+                title: snippet.title,
+                action: #selector(snippetClicked(_:)),
+                keyEquivalent: ""
+            )
+            snippetItem.target = self
+            snippetItem.representedObject = snippet.content
+            menu.addItem(snippetItem)
+        }
+
+        // Folder submenus
         for folder in enabledFolders {
             let folderSnippets = allSnippets.filter { $0.folderId == folder.id && $0.isEnabled }
             guard !folderSnippets.isEmpty else { continue }
@@ -324,27 +365,24 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     // MARK: - Menu Item Builder
 
-    private func buildMenuItem(for item: ClipItem, at index: Int) -> NSMenuItem {
+    private func buildMenuItem(for item: ClipItem, at index: Int, shortcutPrefix: String = "") -> NSMenuItem {
         let maxLen = Defaults[.menuItemTitleMaxLength]
-        let showNumbers = Defaults[.showNumbersInMenu]
         let showImages = Defaults[.showImagesInMenu]
         let showTooltips = Defaults[.showTooltips]
         let tooltipMaxLen = Defaults[.tooltipMaxLength]
 
         // Truncate title to configured max length
-        let displayTitle = String(item.title.prefix(maxLen))
+        let truncatedTitle = String(item.title.prefix(maxLen))
 
-        let keyEquiv: String
-        if showNumbers && index < 9 {
-            keyEquiv = "\(index + 1)"
-        } else {
-            keyEquiv = ""
-        }
+        // Prefix with shortcut key for type-ahead navigation
+        let displayTitle = shortcutPrefix.isEmpty
+            ? truncatedTitle
+            : "\(shortcutPrefix)  \(truncatedTitle)"
 
         let menuItem = NSMenuItem(
             title: displayTitle,
             action: #selector(historyItemClicked(_:)),
-            keyEquivalent: keyEquiv
+            keyEquivalent: ""
         )
         menuItem.target = self
         menuItem.tag = index

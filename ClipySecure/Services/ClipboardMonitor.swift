@@ -5,13 +5,22 @@ import Foundation
 actor ClipboardMonitor {
     private let databaseService: DatabaseService
     private let excludeAppService: ExcludeAppService?
+    private let dataCleanupService: DataCleanupService?
     private var lastChangeCount: Int = 0
     private var lastSetChangeCount: Int = 0
     private var monitoringTask: Task<Void, Never>?
+    /// Tracks unpinned inserts since last cleanup to batch limit enforcement
+    private var insertsSinceCleanup: Int = 0
+    private static let cleanupBuffer = 10
 
-    init(databaseService: DatabaseService, excludeAppService: ExcludeAppService? = nil) {
+    init(
+        databaseService: DatabaseService,
+        excludeAppService: ExcludeAppService? = nil,
+        dataCleanupService: DataCleanupService? = nil
+    ) {
         self.databaseService = databaseService
         self.excludeAppService = excludeAppService
+        self.dataCleanupService = dataCleanupService
     }
 
     func startMonitoring() {
@@ -66,6 +75,13 @@ actor ClipboardMonitor {
 
         let clip = ClipItem(content: content)
         try? databaseService.save(clip: clip)
+
+        // Batch limit enforcement: only run cleanup after a buffer of inserts
+        insertsSinceCleanup += 1
+        if insertsSinceCleanup >= Self.cleanupBuffer, let cleanup = dataCleanupService {
+            try? cleanup.enforceLimit(Defaults[.maxHistorySize])
+            insertsSinceCleanup = 0
+        }
     }
 
     func updateLastSetChangeCount(_ count: Int) {

@@ -2,45 +2,43 @@ import Defaults
 import SwiftUI
 
 struct MenuSettingsView: View {
-    @Default(.numberOfItemsInline) var numberOfItemsInline
-    @Default(.numberOfItemsInFolder) var numberOfItemsInFolder
-    @Default(.showNumbersInMenu) var showNumbersInMenu
     @Default(.menuItemTitleMaxLength) var menuItemTitleMaxLength
+    @Default(.showImagesInMenu) var showImagesInMenu
+    @Default(.showClearHistoryItem) var showClearHistoryItem
+    @Default(.reorderAfterPaste) var reorderAfterPaste
     @Default(.showTooltips) var showTooltips
     @Default(.tooltipMaxLength) var tooltipMaxLength
-    @Default(.showImagesInMenu) var showImagesInMenu
-    @Default(.reorderAfterPaste) var reorderAfterPaste
-    @Default(.showClearHistoryItem) var showClearHistoryItem
 
     var body: some View {
         Form {
-            Section("Display") {
-                Stepper(
-                    "Items inline: \(numberOfItemsInline == 0 ? "All" : "\(numberOfItemsInline)")",
-                    value: $numberOfItemsInline,
-                    in: 0...50
-                )
-                Stepper(
-                    "Items per folder: \(numberOfItemsInFolder)",
-                    value: $numberOfItemsInFolder,
-                    in: 5...50
-                )
+            Section {
                 Stepper(
                     "Title max length: \(menuItemTitleMaxLength)",
                     value: $menuItemTitleMaxLength,
                     in: 20...200
                 )
+                Toggle("Show image thumbnails", isOn: $showImagesInMenu)
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Controls how each clipboard entry appears in the menu. Longer titles show more context; image thumbnails show a preview for copied images.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            Section("Options") {
-                Toggle("Show numbers in menu", isOn: $showNumbersInMenu)
-                Toggle("Show images in menu", isOn: $showImagesInMenu)
-                Toggle("Show Clear History item", isOn: $showClearHistoryItem)
-                Toggle("Reorder after paste", isOn: $reorderAfterPaste)
+            Section {
+                Toggle("Move pasted item to top", isOn: $reorderAfterPaste)
+                Toggle("Show \u{201C}Clear All\u{201D} in menu", isOn: $showClearHistoryItem)
+            } header: {
+                Text("Behavior")
+            } footer: {
+                Text("When \u{201C}Move pasted item to top\u{201D} is on, selecting an item bumps it to the first position so frequently used clips stay accessible.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            Section("Tooltips") {
-                Toggle("Show tooltips", isOn: $showTooltips)
+            Section {
+                Toggle("Show tooltips on hover", isOn: $showTooltips)
                 if showTooltips {
                     Stepper(
                         "Tooltip max length: \(tooltipMaxLength)",
@@ -48,6 +46,12 @@ struct MenuSettingsView: View {
                         in: 50...500
                     )
                 }
+            } header: {
+                Text("Tooltips")
+            } footer: {
+                Text("Tooltips show a longer preview of each clipboard entry when you hover over it in the menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

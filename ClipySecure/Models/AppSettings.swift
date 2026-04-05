@@ -2,9 +2,9 @@ import Defaults
 import Foundation
 
 extension Defaults.Keys {
-    static let maxHistorySize = Key<Int>("maxHistorySize", default: 30)
+    static let maxHistorySize = Key<Int>("maxHistorySize", default: 32)
     static let menuItemTitleMaxLength = Key<Int>("menuItemTitleMaxLength", default: 40)
-    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 0)
+    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 2)
     static let numberOfItemsInFolder = Key<Int>("numberOfItemsInFolder", default: 10)
     static let showNumbersInMenu = Key<Bool>("showNumbersInMenu", default: true)
     static let reorderAfterPaste = Key<Bool>("reorderAfterPaste", default: true)

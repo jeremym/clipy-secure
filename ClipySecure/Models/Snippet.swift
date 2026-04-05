@@ -3,7 +3,7 @@ import GRDB
 
 struct Snippet: Codable, FetchableRecord, PersistableRecord, Identifiable, Sendable {
     var id: String
-    var folderId: String
+    var folderId: String?
     var title: String
     var content: String
     var sortIndex: Int
@@ -11,7 +11,7 @@ struct Snippet: Codable, FetchableRecord, PersistableRecord, Identifiable, Senda
     var createdAt: Date
     var updatedAt: Date
 
-    init(folderId: String, title: String = "Untitled Snippet", content: String = "", sortIndex: Int = 0) {
+    init(folderId: String? = nil, title: String = "Untitled Snippet", content: String = "", sortIndex: Int = 0) {
         self.id = UUID().uuidString
         self.folderId = folderId
         self.title = title
