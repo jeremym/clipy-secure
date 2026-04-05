@@ -1,6 +1,7 @@
 import AppKit
 import Defaults
 import GRDB
+import SwiftUI
 
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
@@ -10,9 +11,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let pasteService: PasteService
     private let accessibilityService: AccessibilityService
     private var historyItems: [ClipItem] = []
+    private var memoryItems: [ClipItem] = []
     private var snippetFolders: [SnippetFolder] = []
     private var allSnippets: [Snippet] = []
     private var observationTask: Task<Void, Never>?
+    private var memoryObservationTask: Task<Void, Never>?
     private var snippetObservationTask: Task<Void, Never>?
     private var snippetEditorWindow: SnippetEditorWindow?
     private var preferencesWindow: PreferencesWindow?
@@ -37,6 +40,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         super.init()
         setupStatusBar()
         startObservation()
+        startMemoryObservation()
         startSnippetObservation()
     }
 
@@ -71,11 +75,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    // MARK: - Observations
+
     private func startObservation() {
+        // History shows ALL items (including memory) ordered by copy date
         let observation = ValueObservation.tracking { db in
             try ClipItem
                 .order(Column("updatedAt").desc)
-                .limit(500) // Fetch more than needed; menu building trims to settings
+                .limit(500)
                 .fetchAll(db)
         }
 
@@ -84,6 +91,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             do {
                 for try await items in observation.values(in: self.databaseService.dbQueue) {
                     self.historyItems = items
+                }
+            } catch {
+                // Observation ended
+            }
+        }
+    }
+
+    private func startMemoryObservation() {
+        // Memory shows only isMemory items, ordered by memorizedAt (save date)
+        let observation = ValueObservation.tracking { db in
+            try ClipItem
+                .filter(Column("isMemory") == true)
+                .order(Column("memorizedAt").desc)
+                .fetchAll(db)
+        }
+
+        memoryObservationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                for try await items in observation.values(in: self.databaseService.dbQueue) {
+                    self.memoryItems = items
                 }
             } catch {
                 // Observation ended
@@ -117,6 +145,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     deinit {
         observationTask?.cancel()
+        memoryObservationTask?.cancel()
         snippetObservationTask?.cancel()
     }
 
@@ -180,6 +209,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
         addSnippetMenuItems(to: menu)
 
+        // Memory section (below snippets)
+        menu.addItem(NSMenuItem.separator())
+        addMemoryMenuItems(to: menu)
+
         // Bottom section: Edit Snippets, Preferences, Quit
         menu.addItem(NSMenuItem.separator())
 
@@ -242,7 +275,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(editSnippetsItem)
     }
 
-    // MARK: - Menu Item Helpers
+    // MARK: - History Items
 
     private func addHistoryItems(to menu: NSMenu) {
         let maxHistorySize = Defaults[.maxHistorySize]
@@ -261,8 +294,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // If inlineCount is 0, show all items inline
         let itemsInline = inlineCount == 0 ? displayItems.count : min(inlineCount, displayItems.count)
 
-        // Inline items prefixed with letter keys for type-ahead: "a  Title", "b  Title", ...
-        // Pressing "a" in the open menu type-selects this item; Enter to paste.
+        // Inline items prefixed with letter keys for type-ahead
         let letterKeys = "abcdefghijklmnopqrstuvwxyz"
         for index in 0..<itemsInline {
             let prefix = index < letterKeys.count
@@ -270,11 +302,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 : ""
             let menuItem = buildMenuItem(for: displayItems[index], at: index, shortcutPrefix: prefix)
             menu.addItem(menuItem)
+
+            // Option-alternate: show truncated title with 🧠 on the right
+            let altItem = buildMemoryAlternateItem(for: displayItems[index], at: index, shortcutPrefix: prefix)
+            menu.addItem(altItem)
         }
 
-        // Remaining items in folders titled "1", "2", "3", ...
-        // Press the digit to type-select the folder, then Right arrow to open it.
-        // Items inside submenus also get prefixes: 1-9, 0, a-z.
+        // Remaining items in folders
         if itemsInline < displayItems.count {
             let remaining = Array(displayItems[itemsInline...])
             let chunks = remaining.chunked(into: folderSize)
@@ -294,6 +328,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                         : ""
                     let menuItem = buildMenuItem(for: item, at: globalIndex, shortcutPrefix: subPrefix)
                     submenu.addItem(menuItem)
+
+                    // Option-alternate inside submenus
+                    let altItem = buildMemoryAlternateItem(for: item, at: globalIndex, shortcutPrefix: subPrefix)
+                    submenu.addItem(altItem)
                 }
 
                 folderItem.submenu = submenu
@@ -301,6 +339,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             }
         }
     }
+
+    // MARK: - Snippet Items
 
     private func addSnippetMenuItems(to menu: NSMenu) {
         let rootSnippets = allSnippets.filter { $0.folderId == nil && $0.isEnabled }
@@ -312,12 +352,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // "Snippets" section header
         let headerItem = NSMenuItem(title: String(localized: "Snippets"), action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
-        // Use the attributed title for a subtle header style
-        let attrs: [NSAttributedString.Key: Any] = [
+        let snippetAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
-        headerItem.attributedTitle = NSAttributedString(string: String(localized: "Snippets"), attributes: attrs)
+        headerItem.attributedTitle = NSAttributedString(string: String(localized: "Snippets"), attributes: snippetAttrs)
         menu.addItem(headerItem)
 
         guard hasAnySnippets else {
@@ -361,6 +400,129 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             folderItem.submenu = submenu
             menu.addItem(folderItem)
         }
+    }
+
+    // MARK: - Memory Items
+
+    private func addMemoryMenuItems(to menu: NSMenu) {
+        // "Memory" section header
+        let headerItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let headerStr = NSMutableAttributedString()
+        let brainAttachment = NSTextAttachment()
+        let brainConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        if let brainImage = NSImage(systemSymbolName: "brain", accessibilityDescription: "Memory")?
+            .withSymbolConfiguration(brainConfig) {
+            brainImage.isTemplate = true
+            brainAttachment.image = brainImage
+        }
+        headerStr.append(NSAttributedString(attachment: brainAttachment))
+        headerStr.append(NSAttributedString(string: " Memory", attributes: attrs))
+        headerItem.attributedTitle = headerStr
+        menu.addItem(headerItem)
+
+        guard !memoryItems.isEmpty else {
+            let emptyItem = NSMenuItem(title: String(localized: "No memories yet"), action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+            return
+        }
+
+        let maxLen = Defaults[.menuItemTitleMaxLength]
+        let folderSize = Defaults[.numberOfItemsInFolder]
+
+        // All memory items get "m" prefix for type-ahead, numbered m1, m2, ...
+        if memoryItems.count <= folderSize {
+            // Few enough to show inline
+            for (index, item) in memoryItems.enumerated() {
+                let menuItem = buildMemoryMenuItem(for: item, label: "m\(index + 1)")
+                menu.addItem(menuItem)
+
+                // Option-alternate: promote to snippet
+                let altItem = buildMemoryPromoteAlternate(for: item, label: "m\(index + 1)")
+                menu.addItem(altItem)
+            }
+        } else {
+            // Group into subfolders
+            let chunks = memoryItems.chunked(into: folderSize)
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                let folderTitle = "m\(chunkIndex + 1)"
+                let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
+                let submenu = NSMenu(title: folderTitle)
+
+                for (offset, item) in chunk.enumerated() {
+                    let globalIndex = chunkIndex * folderSize + offset
+                    let subLabel = "m\(globalIndex + 1)"
+                    let menuItem = buildMemoryMenuItem(for: item, label: subLabel)
+                    submenu.addItem(menuItem)
+
+                    let altItem = buildMemoryPromoteAlternate(for: item, label: subLabel)
+                    submenu.addItem(altItem)
+                }
+
+                folderItem.submenu = submenu
+                menu.addItem(folderItem)
+            }
+        }
+    }
+
+    private func buildMemoryMenuItem(for item: ClipItem, label: String) -> NSMenuItem {
+        let maxLen = Defaults[.menuItemTitleMaxLength]
+        let showTooltips = Defaults[.showTooltips]
+        let tooltipMaxLen = Defaults[.tooltipMaxLength]
+
+        let truncatedTitle = String(item.title.prefix(maxLen))
+        let isMarkdown = MarkdownDetector.looksLikeMarkdown(item.stringValue ?? "")
+        let mdPrefix = isMarkdown ? "MD " : ""
+        let displayTitle = "\(label)  \(mdPrefix)\(truncatedTitle)"
+
+        let menuItem = NSMenuItem(
+            title: displayTitle,
+            action: #selector(memoryItemClicked(_:)),
+            keyEquivalent: ""
+        )
+        menuItem.target = self
+        menuItem.representedObject = item.id
+
+        if showTooltips, let str = item.stringValue {
+            menuItem.toolTip = String(str.prefix(tooltipMaxLen))
+        }
+
+        return menuItem
+    }
+
+    private func buildMemoryPromoteAlternate(for item: ClipItem, label: String) -> NSMenuItem {
+        let maxLen = Defaults[.menuItemTitleMaxLength]
+        let shorterMax = max(20, maxLen - 6)
+        let truncatedTitle = String(item.title.prefix(shorterMax))
+        let displayTitle = "\(label)  \(truncatedTitle)"
+
+        // SF Symbol arrow.right.doc.on.clipboard for "Move to Snippets"
+        let titleStr = NSMutableAttributedString(string: "\(displayTitle)  ")
+        let attachment = NSTextAttachment()
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        if let img = NSImage(systemSymbolName: "arrow.right.doc.on.clipboard", accessibilityDescription: "Move to Snippets")?
+            .withSymbolConfiguration(config) {
+            img.isTemplate = true
+            attachment.image = img
+        }
+        titleStr.append(NSAttributedString(attachment: attachment))
+
+        let altItem = NSMenuItem(
+            title: "",
+            action: #selector(promoteMemoryClicked(_:)),
+            keyEquivalent: ""
+        )
+        altItem.attributedTitle = titleStr
+        altItem.keyEquivalentModifierMask = .option
+        altItem.isAlternate = true
+        altItem.target = self
+        altItem.representedObject = item.id
+        return altItem
     }
 
     // MARK: - Menu Item Builder
@@ -420,6 +582,20 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menuItem.title = "\u{1F4CC} " + menuItem.title
         }
 
+        // Memory indicator (SF Symbol brain, monochrome)
+        if item.isMemory {
+            let brainAttachment = NSTextAttachment()
+            let brainConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+            if let brainImage = NSImage(systemSymbolName: "brain", accessibilityDescription: "Memory")?
+                .withSymbolConfiguration(brainConfig) {
+                brainImage.isTemplate = true
+                brainAttachment.image = brainImage
+            }
+            let attributed = NSMutableAttributedString(attachment: brainAttachment)
+            attributed.append(NSAttributedString(string: " " + menuItem.title))
+            menuItem.attributedTitle = attributed
+        }
+
         // Tooltip
         if showTooltips, let str = item.stringValue {
             menuItem.toolTip = String(str.prefix(tooltipMaxLen))
@@ -428,17 +604,123 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         return menuItem
     }
 
+    /// Builds the Option-alternate menu item: shows a shorter clip title with a 🧠 on the right.
+    private func buildMemoryAlternateItem(for item: ClipItem, at index: Int, shortcutPrefix: String) -> NSMenuItem {
+        let maxLen = Defaults[.menuItemTitleMaxLength]
+        // Leave room for the brain suffix; show a good chunk of the original title
+        let shorterMax = max(20, maxLen - 4)
+        let truncatedTitle = String(item.title.prefix(shorterMax))
+        let displayTitle = shortcutPrefix.isEmpty
+            ? truncatedTitle
+            : "\(shortcutPrefix)  \(truncatedTitle)"
+
+        // Use an SF Symbol brain icon so it renders in monochrome menu style
+        let titleStr = NSMutableAttributedString(string: "\(displayTitle)  ")
+        let brainAttachment = NSTextAttachment()
+        let brainConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        if let brainImage = NSImage(systemSymbolName: "brain", accessibilityDescription: "Save to Memory")?
+            .withSymbolConfiguration(brainConfig) {
+            brainImage.isTemplate = true
+            brainAttachment.image = brainImage
+        }
+        titleStr.append(NSAttributedString(attachment: brainAttachment))
+
+        let altItem = NSMenuItem(
+            title: "",
+            action: #selector(saveToMemoryClicked(_:)),
+            keyEquivalent: ""
+        )
+        altItem.attributedTitle = titleStr
+        altItem.keyEquivalentModifierMask = .option
+        altItem.isAlternate = true
+        altItem.target = self
+        altItem.tag = index
+        return altItem
+    }
+
     // MARK: - Actions
 
     @objc private func historyItemClicked(_ sender: NSMenuItem) {
         let index = sender.tag
         guard index >= 0, index < historyItems.count else { return }
+        pasteClipItem(historyItems[index])
+    }
 
+    @objc private func snippetClicked(_ sender: NSMenuItem) {
+        guard let content = sender.representedObject as? String else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(content, forType: .string)
+
+        let changeCount = pasteboard.changeCount
+        Task {
+            await clipboardMonitor.updateLastSetChangeCount(changeCount)
+        }
+
+        Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            pasteService.paste()
+        }
+    }
+
+    @objc private func saveToMemoryClicked(_ sender: NSMenuItem) {
+        let index = sender.tag
+        guard index >= 0, index < historyItems.count else { return }
         let item = historyItems[index]
+        try? databaseService.setMemory(clipId: item.id)
+    }
+
+    @objc private func editSnippetsClicked(_ sender: NSMenuItem) {
+        snippetEditorWindow?.showWindow()
+    }
+
+    @objc private func preferencesClicked(_ sender: NSMenuItem) {
+        preferencesWindow?.showWindow()
+    }
+
+    @objc private func clearAllClicked(_ sender: NSMenuItem) {
+        try? databaseService.deleteAll()
+    }
+
+    @objc private func memoryItemClicked(_ sender: NSMenuItem) {
+        guard let clipId = sender.representedObject as? String else { return }
+        guard let item = memoryItems.first(where: { $0.id == clipId }) else { return }
+        pasteClipItem(item)
+    }
+
+    @objc private func promoteMemoryClicked(_ sender: NSMenuItem) {
+        guard let clipId = sender.representedObject as? String else { return }
+        promoteMemoryToSnippet(clipId: clipId)
+    }
+
+    // MARK: - Memory Actions
+
+    private func promoteMemoryToSnippet(clipId: String) {
+        guard let item = memoryItems.first(where: { $0.id == clipId }) else { return }
+
+        // Find or create the memory snippet folder
+        let folderName = Defaults[.memorySnippetFolderName]
+        let folder: SnippetFolder
+
+        if let existing = snippetFolders.first(where: { $0.title == folderName }) {
+            folder = existing
+        } else {
+            let nextIndex = (snippetFolders.last?.sortIndex ?? -1) + 1
+            let newFolder = SnippetFolder(title: folderName, sortIndex: nextIndex)
+            try? databaseService.saveFolder(newFolder)
+            folder = newFolder
+        }
+
+        let snippetCount = allSnippets.filter { $0.folderId == folder.id }.count
+        try? databaseService.promoteToSnippet(clipItem: item, folderId: folder.id, sortIndex: snippetCount)
+    }
+
+    // MARK: - Shared Paste Logic
+
+    private func pasteClipItem(_ item: ClipItem) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
-        // Restore all available types when pasting
         var wroteContent = false
 
         if let rtfData = item.rtfData {
@@ -472,48 +754,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)
         }
 
-        // Reorder after paste: update the item's timestamp so it moves to top
+        // Reorder after paste: update the item's timestamp so it moves to top of history
         if Defaults[.reorderAfterPaste] {
             var updated = item
             updated.updatedAt = Date()
             try? databaseService.save(clip: updated)
         }
 
-        // Auto-paste with delay to let menu dismiss and target app regain focus
         Task {
             try? await Task.sleep(for: .milliseconds(100))
             pasteService.paste()
         }
-    }
-
-    @objc private func snippetClicked(_ sender: NSMenuItem) {
-        guard let content = sender.representedObject as? String else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(content, forType: .string)
-
-        let changeCount = pasteboard.changeCount
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
-
-        // Auto-paste with delay to let menu dismiss and target app regain focus
-        Task {
-            try? await Task.sleep(for: .milliseconds(100))
-            pasteService.paste()
-        }
-    }
-
-    @objc private func editSnippetsClicked(_ sender: NSMenuItem) {
-        snippetEditorWindow?.showWindow()
-    }
-
-    @objc private func preferencesClicked(_ sender: NSMenuItem) {
-        preferencesWindow?.showWindow()
-    }
-
-    @objc private func clearAllClicked(_ sender: NSMenuItem) {
-        try? databaseService.deleteAll()
     }
 }
 

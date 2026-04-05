@@ -8,6 +8,7 @@ struct MenuSettingsView: View {
     @Default(.reorderAfterPaste) var reorderAfterPaste
     @Default(.showTooltips) var showTooltips
     @Default(.tooltipMaxLength) var tooltipMaxLength
+    @Default(.memorySnippetFolderName) var memorySnippetFolderName
 
     var body: some View {
         Form {
@@ -50,6 +51,17 @@ struct MenuSettingsView: View {
                 Text("Tooltips")
             } footer: {
                 Text("Tooltips show a longer preview of each clipboard entry when you hover over it in the menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField("Snippet folder name", text: $memorySnippetFolderName)
+                    .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("Memory")
+            } footer: {
+                Text("When you promote a memory item to a snippet, it\u{2019}s saved in a folder with this name. The folder is created automatically if it doesn\u{2019}t exist.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

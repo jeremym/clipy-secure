@@ -121,6 +121,9 @@ final class DatabaseService: Sendable {
         migrator.registerMigration("v7-snippetOptionalFolder") { db in
             // Recreate snippet table with optional folderId to allow root-level snippets.
             // SQLite doesn't support ALTER COLUMN, so we recreate the table.
+            // Drop the existing index first — renaming the table doesn't rename its indexes,
+            // so the new table's .indexed() would collide with the old index name.
+            try db.execute(sql: "DROP INDEX IF EXISTS snippet_on_folderId")
             try db.rename(table: "snippet", to: "snippet_old")
 
             try db.create(table: "snippet") { t in
@@ -143,6 +146,13 @@ final class DatabaseService: Sendable {
                 """)
 
             try db.drop(table: "snippet_old")
+        }
+
+        migrator.registerMigration("v8-addMemoryColumns") { db in
+            try db.alter(table: "clipItem") { t in
+                t.add(column: "isMemory", .boolean).notNull().defaults(to: false)
+                t.add(column: "memorizedAt", .datetime)
+            }
         }
 
         try migrator.migrate(dbQueue)
@@ -191,8 +201,13 @@ final class DatabaseService: Sendable {
 
     func deleteAll() throws {
         try dbQueue.write { db in
-            try ClipItem.deleteAll(db)
-            try db.execute(sql: "DELETE FROM clipItemFts")
+            // Preserve memory items
+            try db.execute(sql: """
+                DELETE FROM clipItemFts WHERE clipId IN (
+                    SELECT id FROM clipItem WHERE isMemory = 0
+                )
+                """)
+            try db.execute(sql: "DELETE FROM clipItem WHERE isMemory = 0")
         }
     }
 
@@ -289,6 +304,38 @@ final class DatabaseService: Sendable {
                 sql: "UPDATE snippet SET folderId = ?, sortIndex = ?, updatedAt = ? WHERE id = ?",
                 arguments: [folderId, index, Date(), id]
             )
+        }
+    }
+
+    // MARK: - Memory CRUD
+
+    func setMemory(clipId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE clipItem SET isMemory = 1, memorizedAt = ? WHERE id = ?",
+                arguments: [Date(), clipId]
+            )
+        }
+    }
+
+    func removeFromMemory(clipId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE clipItem SET isMemory = 0, memorizedAt = NULL WHERE id = ?",
+                arguments: [clipId]
+            )
+        }
+    }
+
+    func promoteToSnippet(clipItem: ClipItem, folderId: String?, sortIndex: Int) throws {
+        let snippet = Snippet(
+            folderId: folderId,
+            title: clipItem.title,
+            content: clipItem.stringValue ?? clipItem.title,
+            sortIndex: sortIndex
+        )
+        try dbQueue.write { db in
+            try snippet.insert(db)
         }
     }
 
