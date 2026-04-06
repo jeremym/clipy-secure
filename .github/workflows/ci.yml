@@ -49,4 +49,3 @@ jobs:
           -destination 'platform=macOS'
           -configuration Debug
           CODE_SIGNING_ALLOWED=NO
-        continue-on-error: true

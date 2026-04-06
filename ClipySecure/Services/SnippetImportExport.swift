@@ -59,6 +59,9 @@ struct SnippetImportExport: Sendable {
         }
     }
 
+    /// The exported XML file is **not encrypted**. Callers should warn the
+    /// user that the output contains plaintext snippet content before
+    /// proceeding with the save.
     static func exportXML(from dbQueue: DatabaseQueue, to url: URL) throws {
         let (folders, allSnippets) = try dbQueue.read { db -> ([SnippetFolder], [Snippet]) in
             let folders = try SnippetFolder
@@ -93,6 +96,12 @@ struct SnippetImportExport: Sendable {
 
         let xmlData = xmlDoc.xmlData(options: [.nodePrettyPrint])
         try xmlData.write(to: url)
+
+        // Restrict exported file to owner-only read/write
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: url.path
+        )
     }
 
     enum ImportExportError: Error, LocalizedError {
