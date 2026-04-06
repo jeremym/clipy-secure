@@ -1,6 +1,7 @@
 import AppKit
 import Defaults
 import Foundation
+import OSLog
 
 actor ClipboardMonitor {
     private let databaseService: DatabaseService
@@ -74,12 +75,20 @@ actor ClipboardMonitor {
         guard hasAllowedType else { return }
 
         let clip = ClipItem(content: content)
-        try? databaseService.save(clip: clip)
+        do {
+            try databaseService.save(clip: clip)
+        } catch {
+            Logger.database.error("Failed to save clip: \(error.localizedDescription)")
+        }
 
         // Batch limit enforcement: only run cleanup after a buffer of inserts
         insertsSinceCleanup += 1
         if insertsSinceCleanup >= Self.cleanupBuffer, let cleanup = dataCleanupService {
-            try? cleanup.enforceLimit(Defaults[.maxHistorySize])
+            do {
+                try cleanup.enforceLimit(Defaults[.maxHistorySize])
+            } catch {
+                Logger.database.error("Failed to enforce history limit: \(error.localizedDescription)")
+            }
             insertsSinceCleanup = 0
         }
     }

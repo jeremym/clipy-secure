@@ -1,6 +1,7 @@
 import AppKit
 import Defaults
 import GRDB
+import OSLog
 import SwiftUI
 
 @MainActor
@@ -78,18 +79,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Observations
 
     private func startObservation() {
-        // History shows ALL items (including memory) ordered by copy date
+        // History shows ALL items (including memory) ordered by copy date.
+        // Select only lightweight columns — blobs are fetched on demand at paste time.
+        let cols = DatabaseService.lightweightColumns
         let observation = ValueObservation.tracking { db in
             try ClipItem
+                .select(cols)
                 .order(Column("updatedAt").desc)
                 .limit(500)
                 .fetchAll(db)
         }
 
+        let dbQueue = databaseService.dbQueue
         observationTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                for try await items in observation.values(in: self.databaseService.dbQueue) {
+                for try await items in observation.values(in: dbQueue) {
+                    guard let self else { return }
                     self.historyItems = items
                 }
             } catch {
@@ -99,19 +104,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func startMemoryObservation() {
-        // Memory shows only isMemory items, ordered by memorizedAt (save date)
+        // Memory shows only isMemory items, ordered by memorizedAt (save date).
+        let cols = DatabaseService.lightweightColumns
         let observation = ValueObservation.tracking { db in
             try ClipItem
+                .select(cols)
                 .filter(Column("isMemory") == true)
                 .order(Column("memorizedAt").desc)
                 .limit(500)
                 .fetchAll(db)
         }
 
+        let dbQueue = databaseService.dbQueue
         memoryObservationTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                for try await items in observation.values(in: self.databaseService.dbQueue) {
+                for try await items in observation.values(in: dbQueue) {
+                    guard let self else { return }
                     self.memoryItems = items
                 }
             } catch {
@@ -131,10 +139,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return (folders, snippets)
         }
 
+        let dbQueue = databaseService.dbQueue
         snippetObservationTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                for try await (folders, snippets) in observation.values(in: self.databaseService.dbQueue) {
+                for try await (folders, snippets) in observation.values(in: dbQueue) {
+                    guard let self else { return }
                     self.snippetFolders = folders
                     self.allSnippets = snippets
                 }
@@ -554,14 +563,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menuItem.target = self
         menuItem.tag = index
 
-        // Show thumbnail for image clips
+        // Show icon for image clips (blobs not loaded in lightweight queries)
         if showImages,
-           item.primaryType == ClipContentType.tiff.rawValue,
-           let data = item.imageData,
-           let image = NSImage(data: data)
+           item.primaryType == ClipContentType.tiff.rawValue
         {
-            image.size = NSSize(width: 32, height: 32)
-            menuItem.image = image
+            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            if let icon = NSImage(systemSymbolName: "photo", accessibilityDescription: "Image")?
+                .withSymbolConfiguration(config) {
+                icon.isTemplate = true
+                menuItem.image = icon
+            }
         }
 
         // Add type indicator for non-text clips
@@ -672,7 +683,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let index = sender.tag
         guard index >= 0, index < historyItems.count else { return }
         let item = historyItems[index]
-        try? databaseService.setMemory(clipId: item.id)
+        do {
+            try databaseService.setMemory(clipId: item.id)
+        } catch {
+            Logger.database.error("Failed to save to memory: \(error.localizedDescription)")
+        }
     }
 
     @objc private func editSnippetsClicked(_ sender: NSMenuItem) {
@@ -684,7 +699,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func clearAllClicked(_ sender: NSMenuItem) {
-        try? databaseService.deleteAll()
+        do {
+            try databaseService.deleteAll()
+        } catch {
+            Logger.database.error("Failed to clear history: \(error.localizedDescription)")
+        }
     }
 
     @objc private func memoryItemClicked(_ sender: NSMenuItem) {
@@ -712,18 +731,29 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         } else {
             let nextIndex = (snippetFolders.last?.sortIndex ?? -1) + 1
             let newFolder = SnippetFolder(title: folderName, sortIndex: nextIndex)
-            try? databaseService.saveFolder(newFolder)
+            do {
+                try databaseService.saveFolder(newFolder)
+            } catch {
+                Logger.database.error("Failed to create memory folder: \(error.localizedDescription)")
+                return
+            }
             folder = newFolder
         }
 
         let snippetCount = allSnippets.filter { $0.folderId == folder.id }.count
-        try? databaseService.promoteToSnippet(clipItem: item, folderId: folder.id, sortIndex: snippetCount)
+        do {
+            try databaseService.promoteToSnippet(clipItem: item, folderId: folder.id, sortIndex: snippetCount)
+        } catch {
+            Logger.database.error("Failed to promote memory to snippet: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Shared Paste Logic
 
     private func pasteClipItem(_ item: ClipItem) {
-        guard let changeCount = pasteService.writeToClipboard(item) else { return }
+        // Fetch full item with blobs — observations only load lightweight columns
+        let fullItem = (try? databaseService.fetchClipItem(id: item.id)) ?? item
+        guard let changeCount = pasteService.writeToClipboard(fullItem) else { return }
 
         Task {
             await clipboardMonitor.updateLastSetChangeCount(changeCount)

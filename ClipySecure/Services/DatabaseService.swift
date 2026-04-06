@@ -155,7 +155,31 @@ final class DatabaseService: Sendable {
             }
         }
 
+        migrator.registerMigration("v9-addUpdatedAtIndex") { db in
+            try db.create(
+                index: "clipItem_on_updatedAt",
+                on: "clipItem",
+                columns: ["updatedAt"]
+            )
+        }
+
         try migrator.migrate(dbQueue)
+    }
+
+    /// Columns to select when we only need metadata (no blobs).
+    /// Used by observations and menu rendering to avoid loading images/RTF/PDF.
+    static let lightweightColumns = [
+        Column("id"), Column("contentHash"), Column("title"), Column("primaryType"),
+        Column("stringValue"), Column("createdAt"), Column("updatedAt"),
+        Column("types"), Column("filenames"), Column("urls"), Column("sourceAppId"),
+        Column("isPinned"), Column("isMemory"), Column("memorizedAt"),
+    ]
+
+    /// Fetch a single full ClipItem by id (including blobs), for paste time.
+    func fetchClipItem(id: String) throws -> ClipItem? {
+        try dbQueue.read { db in
+            try ClipItem.fetchOne(db, id: id)
+        }
     }
 
     // MARK: - ClipItem CRUD

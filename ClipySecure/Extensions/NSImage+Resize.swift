@@ -17,23 +17,34 @@ extension NSImage {
             )
         }
 
-        let newImage = NSImage(size: targetSize)
-        newImage.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        draw(
-            in: NSRect(origin: .zero, size: targetSize),
-            from: NSRect(origin: .zero, size: originalSize),
-            operation: .copy,
-            fraction: 1.0
-        )
-        newImage.unlockFocus()
-
-        guard let tiffData = newImage.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else {
+        guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil
         }
 
-        return pngData
+        let bitmapRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(targetSize.width),
+            pixelsHigh: Int(targetSize.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+
+        guard let rep = bitmapRep,
+              let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            return nil
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        context.cgContext.draw(cgImage, in: CGRect(origin: .zero, size: targetSize))
+        NSGraphicsContext.restoreGraphicsState()
+
+        return rep.representation(using: .png, properties: [:])
     }
 }

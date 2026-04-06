@@ -1,5 +1,6 @@
 import Cocoa
 import Defaults
+import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -42,7 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let cleanup = DataCleanupService(dbQueue: dbService.dbQueue)
             dataCleanupService = cleanup
 
-            try? cleanup.runCleanup()
+            do {
+                try cleanup.runCleanup()
+            } catch {
+                Logger.database.error("Startup cleanup failed: \(error.localizedDescription)")
+            }
 
             let excludeService = ExcludeAppService(databaseService: dbService)
             excludeAppService = excludeService
@@ -106,10 +111,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Stop monitoring synchronously — async Task may not complete before exit.
+        // The actor's stopMonitoring just cancels a Task, which is safe to assume
+        // from the call to the underlying cancel() method. The semaphore ensures
+        // we block until the actor has processed the message.
         if let monitor = clipboardMonitor {
+            let semaphore = DispatchSemaphore(value: 0)
             Task {
                 await monitor.stopMonitoring()
+                semaphore.signal()
             }
+            semaphore.wait()
         }
     }
 }
