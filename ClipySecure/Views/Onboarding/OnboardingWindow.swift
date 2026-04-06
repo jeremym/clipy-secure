@@ -17,7 +17,7 @@ final class OnboardingWindow {
     func showWindow() {
         if let existing = window {
             existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
@@ -56,7 +56,7 @@ final class OnboardingWindow {
 
         Task {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
 

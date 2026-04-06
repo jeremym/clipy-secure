@@ -34,23 +34,43 @@ struct SnippetImportExport: Sendable {
         let folderElements = root.elements(forName: "folder")
 
         try dbQueue.write { db in
+            // Load existing folders and snippets for deduplication
+            let existingFolders = try SnippetFolder.fetchAll(db)
+            let existingSnippets = try Snippet.fetchAll(db)
+
             for (folderIndex, folderElement) in folderElements.enumerated() {
                 let folderTitle = folderElement.elements(forName: "title").first?.stringValue ?? "Untitled Folder"
 
-                let folder = SnippetFolder(title: folderTitle, sortIndex: folderIndex)
-                try folder.insert(db)
+                // Reuse existing folder with same title, or create new one
+                let folder: SnippetFolder
+                if let existing = existingFolders.first(where: { $0.title == folderTitle }) {
+                    folder = existing
+                } else {
+                    let maxIndex = existingFolders.map(\.sortIndex).max() ?? -1
+                    folder = SnippetFolder(title: folderTitle, sortIndex: maxIndex + 1 + folderIndex)
+                    try folder.insert(db)
+                }
 
                 if let snippetsElement = folderElement.elements(forName: "snippets").first {
                     let snippetElements = snippetsElement.elements(forName: "snippet")
+                    let folderSnippets = existingSnippets.filter { $0.folderId == folder.id }
+                    let maxSnippetIndex = folderSnippets.map(\.sortIndex).max() ?? -1
+
                     for (snippetIndex, snippetElement) in snippetElements.enumerated() {
                         let snippetTitle = snippetElement.elements(forName: "title").first?.stringValue ?? "Untitled Snippet"
                         let snippetContent = snippetElement.elements(forName: "content").first?.stringValue ?? ""
+
+                        // Skip if a snippet with the same title and content already exists in this folder
+                        let isDuplicate = folderSnippets.contains {
+                            $0.title == snippetTitle && $0.content == snippetContent
+                        }
+                        guard !isDuplicate else { continue }
 
                         let snippet = Snippet(
                             folderId: folder.id,
                             title: snippetTitle,
                             content: snippetContent,
-                            sortIndex: snippetIndex
+                            sortIndex: maxSnippetIndex + 1 + snippetIndex
                         )
                         try snippet.insert(db)
                     }
