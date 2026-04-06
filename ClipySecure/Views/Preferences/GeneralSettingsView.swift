@@ -7,6 +7,15 @@ struct GeneralSettingsView: View {
     @Default(.numberOfItemsInline) var numberOfItemsInline
     @Default(.numberOfItemsInFolder) var numberOfItemsInFolder
     @Default(.pollingInterval) var pollingInterval
+    @Default(.maxMemorySize) var maxMemorySize
+    @Default(.numberOfMemoryItemsInline) var numberOfMemoryItemsInline
+    @Default(.numberOfItemsPerMemoryFolder) var numberOfItemsPerMemoryFolder
+
+    private var memoryFolderCount: Int {
+        guard numberOfItemsPerMemoryFolder > 0 else { return 0 }
+        let remaining = maxMemorySize - numberOfMemoryItemsInline
+        return remaining > 0 ? Int(ceil(Double(remaining) / Double(numberOfItemsPerMemoryFolder))) : 0
+    }
 
     private var folderCount: Int {
         guard numberOfItemsInFolder > 0 else { return 0 }
@@ -38,6 +47,33 @@ struct GeneralSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Menu layout: \(numberOfItemsInline) at top level + \(folderCount) folder\(folderCount == 1 ? "" : "s") of \(numberOfItemsInFolder)")
                     Text("Tip: set max history = inline + (folders \u{00D7} items per folder) for evenly filled folders.")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Stepper(
+                    "Max memory size: \(maxMemorySize)",
+                    value: $maxMemorySize,
+                    in: 2...999
+                )
+                Stepper(
+                    "Memory items at top level: \(numberOfMemoryItemsInline == 0 ? "All" : "\(numberOfMemoryItemsInline)")",
+                    value: $numberOfMemoryItemsInline,
+                    in: 0...50
+                )
+                Stepper(
+                    "Items per memory folder: \(numberOfItemsPerMemoryFolder)",
+                    value: $numberOfItemsPerMemoryFolder,
+                    in: 5...100
+                )
+            } header: {
+                Text("Memory")
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Menu layout: \(numberOfMemoryItemsInline) at top level + \(memoryFolderCount) folder\(memoryFolderCount == 1 ? "" : "s") of \(numberOfItemsPerMemoryFolder)")
+                    Text("Tip: set max memory = inline + (folders \u{00D7} items per folder) for evenly filled folders.")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

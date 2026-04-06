@@ -19,6 +19,9 @@ extension Defaults.Keys {
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
     static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
+    static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
+    static let numberOfMemoryItemsInline = Key<Int>("numberOfMemoryItemsInline", default: 2)
+    static let numberOfItemsPerMemoryFolder = Key<Int>("numberOfItemsPerMemoryFolder", default: 40)
 }
 
 extension ClipContentType: CaseIterable {
