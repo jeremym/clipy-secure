@@ -15,8 +15,18 @@ struct SnippetImportExport: Sendable {
     //   </folder>
     // </folders>
 
+    private static let maxImportFileSize = 10 * 1024 * 1024 // 10 MB
+
     static func importXML(from url: URL, into dbQueue: DatabaseQueue) throws {
-        let xmlDoc = try XMLDocument(contentsOf: url)
+        // Validate file size before parsing
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let fileSize = attributes[.size] as? Int, fileSize > maxImportFileSize {
+            throw ImportExportError.fileTooLarge
+        }
+
+        // Parse with XXE protection disabled
+        let options: XMLNode.Options = [.nodeLoadExternalEntitiesNever]
+        let xmlDoc = try XMLDocument(contentsOf: url, options: options)
         guard let root = xmlDoc.rootElement(), root.name == "folders" else {
             throw ImportExportError.invalidFormat
         }
@@ -87,11 +97,14 @@ struct SnippetImportExport: Sendable {
 
     enum ImportExportError: Error, LocalizedError {
         case invalidFormat
+        case fileTooLarge
 
         var errorDescription: String? {
             switch self {
             case .invalidFormat:
                 return "The file is not a valid Clipy snippets XML file."
+            case .fileTooLarge:
+                return "The import file exceeds the 10 MB size limit."
             }
         }
     }

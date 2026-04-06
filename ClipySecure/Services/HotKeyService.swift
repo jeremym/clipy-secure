@@ -44,6 +44,13 @@ final class HotKeyService {
         }
 
         KeyboardShortcuts.onKeyUp(for: .clearHistory) { [weak self] in
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Clear History")
+            alert.informativeText = String(localized: "Are you sure you want to clear all clipboard history? This cannot be undone. Memorized items will be preserved.")
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: String(localized: "Clear"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
             try? self?.databaseService.deleteAll()
         }
     }
