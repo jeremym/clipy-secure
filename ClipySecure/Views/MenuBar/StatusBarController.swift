@@ -417,7 +417,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func pasteClipItem(_ item: ClipItem) {
         // Fetch full item with blobs — observations only load lightweight columns
-        let fullItem = (try? databaseService.fetchClipItem(id: item.id)) ?? item
+        let fullItem: ClipItem
+        do {
+            fullItem = try databaseService.fetchClipItem(id: item.id) ?? item
+        } catch {
+            Logger.database.error("Failed to fetch clip item: \(error.localizedDescription)")
+            fullItem = item
+        }
         guard let changeCount = pasteService.writeToClipboard(fullItem) else { return }
 
         Task {
@@ -428,7 +434,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         if Defaults[.reorderAfterPaste] {
             var updated = item
             updated.updatedAt = Date()
-            try? databaseService.save(clip: updated)
+            do {
+                try databaseService.save(clip: updated)
+            } catch {
+                Logger.database.error("Failed to reorder clip after paste: \(error.localizedDescription)")
+            }
         }
 
         Task {

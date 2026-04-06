@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OSLog
 
 @MainActor
 final class ExcludeAppService {
@@ -21,6 +22,10 @@ final class ExcludeAppService {
         currentFrontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     }
 
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+
     @objc private func appDidActivate(_ notification: Notification) {
         if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
             currentFrontmostBundleId = app.bundleIdentifier
@@ -29,10 +34,20 @@ final class ExcludeAppService {
 
     func isCurrentAppExcluded() -> Bool {
         guard let bundleId = currentFrontmostBundleId else { return false }
-        return (try? databaseService.isAppExcluded(bundleId: bundleId)) ?? false
+        do {
+            return try databaseService.isAppExcluded(bundleId: bundleId)
+        } catch {
+            Logger.database.error("Failed to check excluded app: \(error.localizedDescription)")
+            return false
+        }
     }
 
     func isAppExcluded(bundleId: String) -> Bool {
-        (try? databaseService.isAppExcluded(bundleId: bundleId)) ?? false
+        do {
+            return try databaseService.isAppExcluded(bundleId: bundleId)
+        } catch {
+            Logger.database.error("Failed to check excluded app: \(error.localizedDescription)")
+            return false
+        }
     }
 }

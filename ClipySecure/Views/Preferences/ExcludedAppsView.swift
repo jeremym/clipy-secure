@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 struct ExcludedAppsView: View {
@@ -43,7 +44,12 @@ struct ExcludedAppsView: View {
     }
 
     private func loadApps() {
-        excludedApps = (try? databaseService.fetchExcludedApps()) ?? []
+        do {
+            excludedApps = try databaseService.fetchExcludedApps()
+        } catch {
+            Logger.database.error("Failed to fetch excluded apps: \(error.localizedDescription)")
+            excludedApps = []
+        }
     }
 
     private func addApp() {
@@ -62,15 +68,19 @@ struct ExcludedAppsView: View {
 
         do {
             try databaseService.addExcludedApp(bundleId: bundleId, appName: appName)
-            loadApps()
         } catch {
-            // Ignore duplicate errors
+            Logger.database.error("Failed to add excluded app: \(error.localizedDescription)")
         }
+        loadApps()
     }
 
     private func removeSelectedApp() {
         guard let id = selectedAppId else { return }
-        try? databaseService.removeExcludedApp(id: id)
+        do {
+            try databaseService.removeExcludedApp(id: id)
+        } catch {
+            Logger.database.error("Failed to remove excluded app: \(error.localizedDescription)")
+        }
         selectedAppId = nil
         loadApps()
     }
