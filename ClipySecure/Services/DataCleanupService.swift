@@ -46,9 +46,18 @@ final class DataCleanupService: Sendable {
         let historyLimit = Defaults[.maxHistorySize]
         let expirationInterval = Defaults[.historyExpirationSeconds]
 
+        var didDelete = false
+
         if expirationInterval > 0 {
             try deleteExpired(olderThan: expirationInterval)
+            didDelete = true
         }
         try enforceLimit(historyLimit)
+
+        // VACUUM reclaims disk space and overwrites deleted data so it cannot
+        // be recovered with forensic tools.
+        if didDelete {
+            try dbQueue.vacuum()
+        }
     }
 }

@@ -212,6 +212,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 keyEquivalent: ""
             )
             clearItem.target = self
+            clearItem.setAccessibilityLabel(String(localized: "Clear all clipboard history"))
             menu.addItem(clearItem)
         }
 
@@ -232,6 +233,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "e"
         )
         editSnippetsItem.target = self
+        editSnippetsItem.setAccessibilityLabel(String(localized: "Open snippet editor"))
         menu.addItem(editSnippetsItem)
 
         let prefsItem = NSMenuItem(
@@ -240,6 +242,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ","
         )
         prefsItem.target = self
+        prefsItem.setAccessibilityLabel(String(localized: "Open preferences"))
         menu.addItem(prefsItem)
 
         menu.addItem(NSMenuItem(
@@ -261,6 +264,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 keyEquivalent: ""
             )
             clearItem.target = self
+            clearItem.setAccessibilityLabel(String(localized: "Clear all clipboard history"))
             menu.addItem(clearItem)
         }
     }
@@ -616,6 +620,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         if showTooltips, let str = item.stringValue {
             menuItem.toolTip = String(str.prefix(tooltipMaxLen))
         }
+
+        // Accessibility
+        let typeLabel = item.primaryType
+        let pinnedLabel = item.isPinned ? ", pinned" : ""
+        let memoryLabel = item.isMemory ? ", memorized" : ""
+        menuItem.setAccessibilityLabel("Clipboard item: \(item.title)\(pinnedLabel)\(memoryLabel), type: \(typeLabel)")
 
         return menuItem
     }

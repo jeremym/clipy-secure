@@ -14,7 +14,7 @@ extension Defaults.Keys {
     static let showImagesInMenu = Key<Bool>("showImagesInMenu", default: true)
     static let overwriteSameHistory = Key<Bool>("overwriteSameHistory", default: true)
     static let respectConcealedType = Key<Bool>("respectConcealedType", default: true)
-    static let historyExpirationSeconds = Key<TimeInterval>("historyExpirationSeconds", default: 0)
+    static let historyExpirationSeconds = Key<TimeInterval>("historyExpirationSeconds", default: 2_592_000)
     static let storeTypes = Key<Set<String>>("storeTypes", default: Set(ClipContentType.allCases.map(\.rawValue)))
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)

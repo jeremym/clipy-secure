@@ -14,6 +14,12 @@ final class DatabaseService: Sendable {
             withIntermediateDirectories: true
         )
 
+        // Restrict directory permissions to owner only (700)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: appSupportURL.path
+        )
+
         let dbPath = appSupportURL.appendingPathComponent("clipy.db").path
 
         // SQLCipher encryption key infrastructure is ready (EncryptionKeyManager).
@@ -31,7 +37,16 @@ final class DatabaseService: Sendable {
         //   dbQueue = try DatabaseQueue(path: dbPath, configuration: config)
 
         dbQueue = try DatabaseQueue(path: dbPath)
+        try Self.applyMigrations(to: dbQueue)
+    }
 
+    /// Test-only initializer using an in-memory database.
+    init(dbQueue: DatabaseQueue) throws {
+        self.dbQueue = dbQueue
+        try Self.applyMigrations(to: dbQueue)
+    }
+
+    private static func applyMigrations(to dbQueue: DatabaseQueue) throws {
         var migrator = DatabaseMigrator()
 
         migrator.registerMigration("v1-createClipItems") { db in
@@ -164,7 +179,7 @@ final class DatabaseService: Sendable {
         }
 
         try migrator.migrate(dbQueue)
-    }
+    }  // end applyMigrations
 
     /// Columns to select when we only need metadata (no blobs).
     /// Used by observations and menu rendering to avoid loading images/RTF/PDF.
@@ -233,6 +248,7 @@ final class DatabaseService: Sendable {
                 """)
             try db.execute(sql: "DELETE FROM clipItem WHERE isMemory = 0")
         }
+        try dbQueue.vacuum()
     }
 
     func deleteOldest(keeping limit: Int) throws {
