@@ -1,4 +1,5 @@
 import GRDB
+import OSLog
 import SwiftUI
 
 struct HistoryListView: View {
@@ -84,8 +85,12 @@ struct HistoryListView: View {
             } else {
                 observationTask?.cancel()
                 observationTask = nil
-                let results = (try? databaseService.searchClips(query: query)) ?? []
-                items = results
+                do {
+                    items = try databaseService.searchClips(query: query)
+                } catch {
+                    Logger.database.error("Search failed: \(error.localizedDescription)")
+                    items = []
+                }
             }
         }
     }

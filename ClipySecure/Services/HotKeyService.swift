@@ -1,5 +1,6 @@
 import Cocoa
 import KeyboardShortcuts
+import OSLog
 
 extension KeyboardShortcuts.Name {
     static let toggleMainMenu = Self("toggleMainMenu", default: .init(.v, modifiers: [.command, .shift]))
@@ -51,7 +52,11 @@ final class HotKeyService {
             alert.addButton(withTitle: String(localized: "Clear"))
             alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
-            try? self?.databaseService.deleteAll()
+            do {
+                try self?.databaseService.deleteAll()
+            } catch {
+                Logger.database.error("Failed to clear history: \(error.localizedDescription)")
+            }
         }
     }
 }

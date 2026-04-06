@@ -1,4 +1,5 @@
 import Defaults
+import OSLog
 import SwiftUI
 
 struct PrivacySettingsView: View {
@@ -40,7 +41,11 @@ struct PrivacySettingsView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Clear All History", role: .destructive) {
-                        try? databaseService.deleteAll()
+                        do {
+                            try databaseService.deleteAll()
+                        } catch {
+                            Logger.database.error("Failed to clear history: \(error.localizedDescription)")
+                        }
                     }
                     Button("Cancel", role: .cancel) {}
                 }
