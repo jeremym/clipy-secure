@@ -32,7 +32,7 @@ final class ExcludeAppService {
         return (try? databaseService.isAppExcluded(bundleId: bundleId)) ?? false
     }
 
-    nonisolated func isAppExcluded(bundleId: String) -> Bool {
+    func isAppExcluded(bundleId: String) -> Bool {
         (try? databaseService.isAppExcluded(bundleId: bundleId)) ?? false
     }
 }

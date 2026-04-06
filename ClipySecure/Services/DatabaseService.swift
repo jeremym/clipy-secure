@@ -213,19 +213,29 @@ final class DatabaseService: Sendable {
 
     func deleteOldest(keeping limit: Int) throws {
         try dbQueue.write { db in
-            // Clean up FTS entries for clips about to be deleted
+            // Clean up FTS entries for clips about to be deleted, preserving pinned/memory items
             try db.execute(
                 sql: """
-                    DELETE FROM clipItemFts WHERE clipId NOT IN (
-                        SELECT id FROM clipItem ORDER BY updatedAt DESC LIMIT ?
+                    DELETE FROM clipItemFts WHERE clipId IN (
+                        SELECT id FROM clipItem
+                        WHERE isPinned = 0 AND isMemory = 0
+                        AND id NOT IN (
+                            SELECT id FROM clipItem
+                            WHERE isPinned = 0 AND isMemory = 0
+                            ORDER BY updatedAt DESC LIMIT ?
+                        )
                     )
                     """,
                 arguments: [limit]
             )
             try db.execute(
                 sql: """
-                    DELETE FROM clipItem WHERE id NOT IN (
-                        SELECT id FROM clipItem ORDER BY updatedAt DESC LIMIT ?
+                    DELETE FROM clipItem
+                    WHERE isPinned = 0 AND isMemory = 0
+                    AND id NOT IN (
+                        SELECT id FROM clipItem
+                        WHERE isPinned = 0 AND isMemory = 0
+                        ORDER BY updatedAt DESC LIMIT ?
                     )
                     """,
                 arguments: [limit]

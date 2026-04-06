@@ -14,6 +14,7 @@ final class SnippetEditorViewModel {
 
     private let databaseService: DatabaseService
     private var observationTask: Task<Void, Never>?
+    private var saveTask: Task<Void, Never>?
 
     init(databaseService: DatabaseService) {
         self.databaseService = databaseService
@@ -48,10 +49,11 @@ final class SnippetEditorViewModel {
             return (folders, snippets)
         }
 
+        let dbQueue = databaseService.dbQueue
         observationTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                for try await (folders, snippets) in observation.values(in: self.databaseService.dbQueue) {
+                for try await (folders, snippets) in observation.values(in: dbQueue) {
+                    guard let self else { return }
                     self.folders = folders
                     self.allSnippets = snippets
                 }
@@ -130,17 +132,27 @@ final class SnippetEditorViewModel {
     }
 
     func updateSnippetContent(_ snippetId: String, content: String) {
-        guard var snippet = allSnippets.first(where: { $0.id == snippetId }) else { return }
-        snippet.content = content
-        snippet.updatedAt = Date()
-        try? databaseService.saveSnippet(snippet)
+        debounceSave(snippetId: snippetId) { snippet in
+            snippet.content = content
+        }
     }
 
     func updateSnippetTitle(_ snippetId: String, title: String) {
-        guard var snippet = allSnippets.first(where: { $0.id == snippetId }) else { return }
-        snippet.title = title
-        snippet.updatedAt = Date()
-        try? databaseService.saveSnippet(snippet)
+        debounceSave(snippetId: snippetId) { snippet in
+            snippet.title = title
+        }
+    }
+
+    private func debounceSave(snippetId: String, apply: @escaping (inout Snippet) -> Void) {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            guard var snippet = allSnippets.first(where: { $0.id == snippetId }) else { return }
+            apply(&snippet)
+            snippet.updatedAt = Date()
+            try? databaseService.saveSnippet(snippet)
+        }
     }
 
     func selectFolder(_ folderId: String?) {

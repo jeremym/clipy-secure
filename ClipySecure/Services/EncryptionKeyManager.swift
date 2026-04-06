@@ -10,14 +10,17 @@ final class EncryptionKeyManager: Sendable {
         if let existingKey = try readKeyFromKeychain() {
             return existingKey
         }
-        let newKey = generateRandomKey()
+        let newKey = try generateRandomKey()
         try storeKeyInKeychain(newKey)
         return newKey
     }
 
-    private func generateRandomKey() -> String {
+    private func generateRandomKey() throws -> String {
         var bytes = [UInt8](repeating: 0, count: Self.keyLength)
-        _ = SecRandomCopyBytes(kSecRandomDefault, Self.keyLength, &bytes)
+        let status = SecRandomCopyBytes(kSecRandomDefault, Self.keyLength, &bytes)
+        guard status == errSecSuccess else {
+            throw EncryptionKeyError.randomGenerationFailed(status)
+        }
         return Data(bytes).base64EncodedString()
     }
 
@@ -70,6 +73,7 @@ final class EncryptionKeyManager: Sendable {
 enum EncryptionKeyError: Error, LocalizedError {
     case corruptedKey
     case keychainError(OSStatus)
+    case randomGenerationFailed(OSStatus)
 
     var errorDescription: String? {
         switch self {
@@ -77,6 +81,8 @@ enum EncryptionKeyError: Error, LocalizedError {
             return "The encryption key in the Keychain is corrupted."
         case .keychainError(let status):
             return "Keychain error: \(status)"
+        case .randomGenerationFailed(let status):
+            return "Failed to generate random key: \(status)"
         }
     }
 }
