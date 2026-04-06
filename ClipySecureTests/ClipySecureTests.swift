@@ -218,6 +218,75 @@ final class DatabaseServiceTests: XCTestCase {
     }
 }
 
+final class ImportDeduplicationTests: XCTestCase {
+
+    private func makeDbQueue() throws -> DatabaseQueue {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+        _ = db // ensure migrations run
+        return dbQueue
+    }
+
+    private func makeXML(folders: [(title: String, snippets: [(title: String, content: String)])]) -> URL {
+        var xml = "<folders>"
+        for folder in folders {
+            xml += "<folder><title>\(folder.title)</title><snippets>"
+            for snippet in folder.snippets {
+                xml += "<snippet><title>\(snippet.title)</title><content>\(snippet.content)</content></snippet>"
+            }
+            xml += "</snippets></folder>"
+        }
+        xml += "</folders>"
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-import-\(UUID().uuidString).xml")
+        try! xml.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func testRepeatedImportDoesNotDuplicate() throws {
+        let dbQueue = try makeDbQueue()
+        let url = makeXML(folders: [
+            (title: "Work", snippets: [
+                (title: "Email", content: "Dear Sir"),
+                (title: "Sign-off", content: "Regards"),
+            ]),
+        ])
+
+        try SnippetImportExport.importXML(from: url, into: dbQueue)
+        try SnippetImportExport.importXML(from: url, into: dbQueue)
+
+        let folders = try dbQueue.read { db in try SnippetFolder.fetchAll(db) }
+        XCTAssertEqual(folders.filter { $0.title == "Work" }.count, 1, "Should reuse existing folder")
+
+        let snippets = try dbQueue.read { db in try Snippet.fetchAll(db) }
+        XCTAssertEqual(snippets.count, 2, "Should not create duplicate snippets")
+
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func testImportNewSnippetIntoExistingFolder() throws {
+        let dbQueue = try makeDbQueue()
+        let url1 = makeXML(folders: [
+            (title: "Work", snippets: [(title: "Email", content: "Dear Sir")]),
+        ])
+        let url2 = makeXML(folders: [
+            (title: "Work", snippets: [(title: "Memo", content: "To all staff")]),
+        ])
+
+        try SnippetImportExport.importXML(from: url1, into: dbQueue)
+        try SnippetImportExport.importXML(from: url2, into: dbQueue)
+
+        let folders = try dbQueue.read { db in try SnippetFolder.fetchAll(db) }
+        XCTAssertEqual(folders.filter { $0.title == "Work" }.count, 1)
+
+        let snippets = try dbQueue.read { db in try Snippet.fetchAll(db) }
+        XCTAssertEqual(snippets.count, 2, "Should add the new snippet without duplicating the old one")
+
+        try? FileManager.default.removeItem(at: url1)
+        try? FileManager.default.removeItem(at: url2)
+    }
+}
+
 final class StringTruncateTests: XCTestCase {
 
     func testShortStringNotTruncated() {

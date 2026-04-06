@@ -14,7 +14,7 @@ final class SnippetEditorWindow {
     func showWindow() {
         if let existing = window {
             existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
@@ -39,7 +39,7 @@ final class SnippetEditorWindow {
         // in the same tick triggers a second pass, causing recursion.
         Task {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
 

@@ -49,7 +49,7 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
     func showWindow() {
         if let existing = window {
             existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
@@ -74,7 +74,7 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
 
         Task {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
 
