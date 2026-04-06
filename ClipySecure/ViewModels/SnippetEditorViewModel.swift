@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Observation
+import OSLog
 
 @Observable
 @MainActor
@@ -68,14 +69,22 @@ final class SnippetEditorViewModel {
     func addFolder() {
         let nextIndex = (folders.last?.sortIndex ?? -1) + 1
         let folder = SnippetFolder(sortIndex: nextIndex)
-        try? databaseService.saveFolder(folder)
+        do {
+            try databaseService.saveFolder(folder)
+        } catch {
+            Logger.database.error("Failed to add folder: \(error.localizedDescription)")
+        }
         selectedFolderId = folder.id
         selectedSnippetId = nil
         isRootSelected = false
     }
 
     func deleteFolder(_ folderId: String) {
-        try? databaseService.deleteFolder(id: folderId)
+        do {
+            try databaseService.deleteFolder(id: folderId)
+        } catch {
+            Logger.database.error("Failed to delete folder: \(error.localizedDescription)")
+        }
         if selectedFolderId == folderId {
             selectedFolderId = nil
             selectedSnippetId = nil
@@ -86,14 +95,22 @@ final class SnippetEditorViewModel {
         guard var folder = folders.first(where: { $0.id == folderId }) else { return }
         folder.title = title
         folder.updatedAt = Date()
-        try? databaseService.saveFolder(folder)
+        do {
+            try databaseService.saveFolder(folder)
+        } catch {
+            Logger.database.error("Failed to update folder title: \(error.localizedDescription)")
+        }
     }
 
     func updateFolderEnabled(_ folderId: String, isEnabled: Bool) {
         guard var folder = folders.first(where: { $0.id == folderId }) else { return }
         folder.isEnabled = isEnabled
         folder.updatedAt = Date()
-        try? databaseService.saveFolder(folder)
+        do {
+            try databaseService.saveFolder(folder)
+        } catch {
+            Logger.database.error("Failed to update folder enabled state: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Snippet Actions
@@ -112,12 +129,20 @@ final class SnippetEditorViewModel {
 
         let nextIndex = (folderSnippets.last?.sortIndex ?? -1) + 1
         let snippet = Snippet(folderId: folderId, sortIndex: nextIndex)
-        try? databaseService.saveSnippet(snippet)
+        do {
+            try databaseService.saveSnippet(snippet)
+        } catch {
+            Logger.database.error("Failed to add snippet: \(error.localizedDescription)")
+        }
         selectedSnippetId = snippet.id
     }
 
     func deleteSnippet(_ snippetId: String) {
-        try? databaseService.deleteSnippet(id: snippetId)
+        do {
+            try databaseService.deleteSnippet(id: snippetId)
+        } catch {
+            Logger.database.error("Failed to delete snippet: \(error.localizedDescription)")
+        }
         if selectedSnippetId == snippetId {
             selectedSnippetId = nil
         }
@@ -151,7 +176,11 @@ final class SnippetEditorViewModel {
             guard var snippet = allSnippets.first(where: { $0.id == snippetId }) else { return }
             apply(&snippet)
             snippet.updatedAt = Date()
-            try? databaseService.saveSnippet(snippet)
+            do {
+                try databaseService.saveSnippet(snippet)
+            } catch {
+                Logger.database.error("Failed to save snippet: \(error.localizedDescription)")
+            }
         }
     }
 

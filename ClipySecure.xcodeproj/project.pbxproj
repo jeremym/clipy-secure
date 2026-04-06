@@ -22,6 +22,7 @@
 		A10000010000000000000201 /* ClipContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000201 /* ClipContent.swift */; };
 		A10000010000000000000202 /* PasteboardReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000202 /* PasteboardReader.swift */; };
 		A10000010000000000000203 /* NSImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000203 /* NSImage+Resize.swift */; };
+		A10000010000000000000250 /* Logger+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000250 /* Logger+App.swift */; };
 		A10000010000000000000204 /* DataCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000204 /* DataCleanupService.swift */; };
 		A10000010000000000000300 /* SnippetFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000300 /* SnippetFolder.swift */; };
 		A10000010000000000000301 /* Snippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000301 /* Snippet.swift */; };
@@ -83,6 +84,7 @@
 		A20000010000000000000201 /* ClipContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipContent.swift; sourceTree = "<group>"; };
 		A20000010000000000000202 /* PasteboardReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardReader.swift; sourceTree = "<group>"; };
 		A20000010000000000000203 /* NSImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Resize.swift"; sourceTree = "<group>"; };
+		A20000010000000000000250 /* Logger+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Logger+App.swift"; sourceTree = "<group>"; };
 		A20000010000000000000204 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
 		A20000010000000000000300 /* SnippetFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetFolder.swift; sourceTree = "<group>"; };
 		A20000010000000000000301 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 			children = (
 				A20000010000000000000101 /* String+Truncate.swift */,
 				A20000010000000000000203 /* NSImage+Resize.swift */,
+				A20000010000000000000250 /* Logger+App.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -433,6 +436,7 @@
 				A10000010000000000000201 /* ClipContent.swift in Sources */,
 				A10000010000000000000202 /* PasteboardReader.swift in Sources */,
 				A10000010000000000000203 /* NSImage+Resize.swift in Sources */,
+				A10000010000000000000250 /* Logger+App.swift in Sources */,
 				A10000010000000000000204 /* DataCleanupService.swift in Sources */,
 				A10000010000000000000300 /* SnippetFolder.swift in Sources */,
 				A10000010000000000000301 /* Snippet.swift in Sources */,
