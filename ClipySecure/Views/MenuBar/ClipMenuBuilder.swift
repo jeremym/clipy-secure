@@ -38,10 +38,10 @@ struct ClipMenuBuilder {
             let prefix = index < letterKeys.count
                 ? String(letterKeys[letterKeys.index(letterKeys.startIndex, offsetBy: index)])
                 : ""
-            let menuItem = buildHistoryItem(for: displayItems[index], at: index, shortcutPrefix: prefix, target: target, action: pasteAction)
+            let menuItem = buildHistoryItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: pasteAction)
             menu.addItem(menuItem)
 
-            let altItem = buildMemoryAlternateItem(for: displayItems[index], at: index, shortcutPrefix: prefix, target: target, action: memoryAction)
+            let altItem = buildMemoryAlternateItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: memoryAction)
             menu.addItem(altItem)
         }
 
@@ -59,14 +59,13 @@ struct ClipMenuBuilder {
                 let submenu = NSMenu(title: folderTitle)
 
                 for (offset, item) in chunk.enumerated() {
-                    let globalIndex = itemsInline + (chunkIndex * folderSize) + offset
                     let subPrefix = offset < submenuKeys.count
                         ? String(submenuKeys[submenuKeys.index(submenuKeys.startIndex, offsetBy: offset)])
                         : ""
-                    let menuItem = buildHistoryItem(for: item, at: globalIndex, shortcutPrefix: subPrefix, target: target, action: pasteAction)
+                    let menuItem = buildHistoryItem(for: item, shortcutPrefix: subPrefix, target: target, action: pasteAction)
                     submenu.addItem(menuItem)
 
-                    let altItem = buildMemoryAlternateItem(for: item, at: globalIndex, shortcutPrefix: subPrefix, target: target, action: memoryAction)
+                    let altItem = buildMemoryAlternateItem(for: item, shortcutPrefix: subPrefix, target: target, action: memoryAction)
                     submenu.addItem(altItem)
                 }
 
@@ -226,7 +225,6 @@ struct ClipMenuBuilder {
 
     private static func buildHistoryItem(
         for item: ClipItem,
-        at index: Int,
         shortcutPrefix: String,
         target: AnyObject,
         action: Selector
@@ -247,7 +245,9 @@ struct ClipMenuBuilder {
             keyEquivalent: ""
         )
         menuItem.target = target
-        menuItem.tag = index
+        // Address items by id, not index — the backing array is live-updated
+        // by the observation and can shift while the menu is open.
+        menuItem.representedObject = item.id
 
         // Show icon for image clips
         if showImages,
@@ -314,7 +314,6 @@ struct ClipMenuBuilder {
 
     private static func buildMemoryAlternateItem(
         for item: ClipItem,
-        at index: Int,
         shortcutPrefix: String,
         target: AnyObject,
         action: Selector
@@ -345,7 +344,7 @@ struct ClipMenuBuilder {
         altItem.keyEquivalentModifierMask = .option
         altItem.isAlternate = true
         altItem.target = target
-        altItem.tag = index
+        altItem.representedObject = item.id
         return altItem
     }
 

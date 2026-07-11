@@ -9,9 +9,11 @@ final class DataCleanupService: Sendable {
         self.dbQueue = dbQueue
     }
 
-    func deleteExpired(olderThan interval: TimeInterval) throws {
+    /// Returns the number of rows deleted.
+    @discardableResult
+    func deleteExpired(olderThan interval: TimeInterval) throws -> Int {
         let cutoff = Date().addingTimeInterval(-interval)
-        try dbQueue.write { db in
+        return try dbQueue.write { db in
             try db.execute(
                 sql: """
                     DELETE FROM clipItem
@@ -19,10 +21,13 @@ final class DataCleanupService: Sendable {
                     """,
                 arguments: [cutoff]
             )
+            return db.changesCount
         }
     }
 
-    func enforceLimit(_ limit: Int) throws {
+    /// Returns the number of rows deleted.
+    @discardableResult
+    func enforceLimit(_ limit: Int) throws -> Int {
         try dbQueue.write { db in
             try db.execute(
                 sql: """
@@ -39,6 +44,7 @@ final class DataCleanupService: Sendable {
                     """,
                 arguments: [limit]
             )
+            return db.changesCount
         }
     }
 
@@ -46,17 +52,26 @@ final class DataCleanupService: Sendable {
         let historyLimit = Defaults[.maxHistorySize]
         let expirationInterval = Defaults[.historyExpirationSeconds]
 
-        var didDelete = false
+        var deletedCount = 0
 
         if expirationInterval > 0 {
-            try deleteExpired(olderThan: expirationInterval)
-            didDelete = true
+            deletedCount += try deleteExpired(olderThan: expirationInterval)
         }
-        try enforceLimit(historyLimit)
+        deletedCount += try enforceLimit(historyLimit)
+
+        // Freed pages still hold deleted content until VACUUM overwrites them.
+        // A non-empty freelist means deletions happened since the last vacuum
+        // (e.g. ClipboardMonitor's limit enforcement between cleanups).
+        if deletedCount == 0 {
+            deletedCount = try dbQueue.read { db in
+                try Int.fetchOne(db, sql: "PRAGMA freelist_count") ?? 0
+            }
+        }
 
         // VACUUM reclaims disk space and overwrites deleted data so it cannot
-        // be recovered with forensic tools.
-        if didDelete {
+        // be recovered with forensic tools. Only worth the file rewrite when
+        // something was actually deleted.
+        if deletedCount > 0 {
             try dbQueue.vacuum()
         }
     }

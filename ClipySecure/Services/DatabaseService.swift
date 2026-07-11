@@ -404,12 +404,15 @@ final class DatabaseService: Sendable {
     /// Expects a freshly created ClipItem whose contentHash is the plain
     /// creation-time SHA-256; the stored hash is keyed by encryptForStorage.
     /// To reorder an existing clip, use touch(clipId:) instead.
-    func save(clip: ClipItem) throws {
+    /// When overwriteDuplicates is false, identical content is stored as a
+    /// new entry instead of bumping the existing one.
+    func save(clip: ClipItem, overwriteDuplicates: Bool = true) throws {
         let stored = try encryptForStorage(clip)
         try dbQueue.write { db in
-            if var existing = try ClipItem
-                .filter(Column("contentHash") == stored.contentHash)
-                .fetchOne(db)
+            if overwriteDuplicates,
+               var existing = try ClipItem
+                   .filter(Column("contentHash") == stored.contentHash)
+                   .fetchOne(db)
             {
                 // Content is unchanged, so its search index entry stays valid.
                 existing.updatedAt = Date()

@@ -19,7 +19,7 @@ xcodebuild -project ClipySecure.xcodeproj -scheme ClipySecure -destination 'plat
 xcodebuild -project ClipySecure.xcodeproj -scheme ClipySecure -destination 'platform=macOS' test
 ```
 
-Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with an ephemeral encryption key — no Keychain access. 30 unit tests covering DB CRUD, FTS search, hash stability, pinned/memory preservation, snippets, excluded apps, import deduplication, encryption at rest, and the v10 encryption migration.
+Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with an ephemeral encryption key — no Keychain access. 33 unit tests covering DB CRUD, FTS search, hash stability, pinned/memory preservation, snippets, excluded apps, import deduplication, encryption at rest, the v10 encryption migration, and security-fix regressions (transient pasteboard, duplicate handling, cleanup counts).
 
 ## Architecture
 

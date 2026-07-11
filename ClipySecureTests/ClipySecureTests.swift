@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import ClipySecure
 import GRDB
@@ -217,6 +218,47 @@ final class DatabaseServiceTests: XCTestCase {
         try db.removeExcludedApp(id: app.id)
         let afterRemove = try db.isAppExcluded(bundleId: "com.test.app")
         XCTAssertFalse(afterRemove)
+    }
+}
+
+final class SecurityFixTests: XCTestCase {
+
+    func testDuplicatesKeptWhenOverwriteDisabled() throws {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+
+        try db.save(clip: ClipItem(stringValue: "same content"), overwriteDuplicates: false)
+        try db.save(clip: ClipItem(stringValue: "same content"), overwriteDuplicates: false)
+
+        XCTAssertEqual(try db.fetchHistory(limit: 10).count, 2)
+    }
+
+    @MainActor
+    func testTransientPasteboardContentIsSkipped() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("test-\(UUID().uuidString)"))
+        let transient = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("normal content", forType: .string)
+        XCTAssertNotNil(PasteboardReader.read(from: pasteboard))
+
+        pasteboard.declareTypes([.string, transient], owner: nil)
+        pasteboard.setString("transient content", forType: .string)
+        XCTAssertNil(PasteboardReader.read(from: pasteboard), "Transient-marked content must never be stored")
+    }
+
+    func testEnforceLimitReportsDeletedCount() throws {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+        let cleanup = DataCleanupService(dbQueue: dbQueue)
+
+        for i in 0..<5 {
+            try db.save(clip: ClipItem(stringValue: "item \(i)"))
+        }
+
+        XCTAssertEqual(try cleanup.enforceLimit(2), 3)
+        XCTAssertEqual(try db.fetchHistory(limit: 10).count, 2)
+        XCTAssertEqual(try cleanup.enforceLimit(2), 0)
     }
 }
 
