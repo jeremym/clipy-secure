@@ -44,12 +44,15 @@ final class ClipItemCodableTests: XCTestCase {
         }
 
         XCTAssertEqual(decoded.id, original.id)
-        XCTAssertEqual(decoded.stringValue, original.stringValue)
         XCTAssertEqual(decoded.contentHash, original.contentHash)
-        XCTAssertEqual(decoded.title, original.title)
         XCTAssertEqual(decoded.primaryType, original.primaryType)
         XCTAssertEqual(decoded.isPinned, original.isPinned)
         XCTAssertEqual(decoded.isMemory, original.isMemory)
+
+        // Plaintext content is in-memory only and must never serialize —
+        // this is what keeps it out of the database file.
+        XCTAssertNil(decoded.stringValue)
+        XCTAssertEqual(decoded.title, "")
     }
 
     func testTypesEncodeDecodeRoundTrip() {
@@ -102,8 +105,7 @@ final class DatabaseServiceTests: XCTestCase {
         try db.save(clip: clip2)
 
         let items = try db.fetchHistory(limit: 100)
-        let matching = items.filter { $0.contentHash == clip1.contentHash }
-        XCTAssertEqual(matching.count, 1, "Duplicate content should update existing, not create new row")
+        XCTAssertEqual(items.count, 1, "Duplicate content should update existing, not create new row")
     }
 
     func testDeleteAllPreservesMemory() throws {
@@ -215,6 +217,177 @@ final class DatabaseServiceTests: XCTestCase {
         try db.removeExcludedApp(id: app.id)
         let afterRemove = try db.isAppExcluded(bundleId: "com.test.app")
         XCTAssertFalse(afterRemove)
+    }
+}
+
+final class FieldEncryptionTests: XCTestCase {
+
+    func testStringRoundTrip() throws {
+        let fe = FieldEncryption.ephemeral()
+        let ciphertext = try fe.encrypt("sensitive clipboard text")
+        XCTAssertEqual(try fe.decryptString(ciphertext), "sensitive clipboard text")
+        XCTAssertNil(ciphertext.range(of: Data("sensitive clipboard text".utf8)))
+    }
+
+    func testDataRoundTrip() throws {
+        let fe = FieldEncryption.ephemeral()
+        let blob = Data((0..<1024).map { UInt8($0 % 256) })
+        let ciphertext = try fe.encrypt(blob)
+        XCTAssertEqual(try fe.decryptData(ciphertext), blob)
+    }
+
+    func testDecryptWithWrongKeyThrows() throws {
+        let ciphertext = try FieldEncryption.ephemeral().encrypt("secret")
+        XCTAssertThrowsError(try FieldEncryption.ephemeral().decryptString(ciphertext))
+    }
+
+    func testKeyedHashIsStablePerKeyAndDiffersAcrossKeys() {
+        let fe1 = FieldEncryption.ephemeral()
+        let fe2 = FieldEncryption.ephemeral()
+        let hash = ClipItem.computeHash(for: "hello")
+        XCTAssertEqual(fe1.keyedHash(hash), fe1.keyedHash(hash))
+        XCTAssertNotEqual(fe1.keyedHash(hash), fe2.keyedHash(hash))
+        XCTAssertNotEqual(fe1.keyedHash(hash), hash)
+    }
+}
+
+final class EncryptionAtRestTests: XCTestCase {
+
+    func testContentIsEncryptedAtRest() throws {
+        let fe = FieldEncryption.ephemeral()
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue, fieldEncryption: fe)
+
+        let clip = ClipItem(stringValue: "super secret plaintext")
+        try db.save(clip: clip)
+
+        guard let row = try dbQueue.read({ db in
+            try Row.fetchOne(db, sql: "SELECT * FROM clipItem WHERE id = ?", arguments: [clip.id])
+        }) else {
+            XCTFail("Row not found")
+            return
+        }
+
+        // Plaintext columns no longer exist in the schema
+        XCTAssertFalse(row.columnNames.contains("stringValue"))
+        XCTAssertFalse(row.columnNames.contains("title"))
+
+        // Ciphertext does not contain the plaintext bytes
+        let encStringValue: Data = row["encStringValue"]
+        XCTAssertNil(encStringValue.range(of: Data("super secret plaintext".utf8)))
+        XCTAssertEqual(try fe.decryptString(encStringValue), "super secret plaintext")
+
+        // The stored hash is keyed — not the crackable plain SHA-256
+        let storedHash: String = row["contentHash"]
+        XCTAssertEqual(storedHash, fe.keyedHash(clip.contentHash))
+        XCTAssertNotEqual(storedHash, clip.contentHash)
+    }
+
+    func testSearchIndexNotOnDisk() throws {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+        try db.save(clip: ClipItem(stringValue: "findable text"))
+
+        // The FTS index (and its shadow tables) must not exist in the main
+        // database — searchable plaintext lives only in the attached memory db.
+        let ftsTableCount = try dbQueue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM main.sqlite_master WHERE name LIKE 'clipItemFts%'"
+            ) ?? -1
+        }
+        XCTAssertEqual(ftsTableCount, 0)
+
+        // Search still works via the in-memory index
+        let results = try db.searchClips(query: "findable")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.stringValue, "findable text")
+    }
+
+    func testSearchIndexRebuiltForNewServiceInstance() throws {
+        let fe = FieldEncryption.ephemeral()
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+
+        let db1 = try DatabaseService(dbQueue: dbQueue, fieldEncryption: fe)
+        try db1.save(clip: ClipItem(stringValue: "persistent searchable clip"))
+
+        // A second service on the same database (fresh launch) must rebuild
+        // the in-memory search index from the encrypted rows.
+        let db2 = try DatabaseService(dbQueue: dbQueue, fieldEncryption: fe)
+        let results = try db2.searchClips(query: "persistent")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.stringValue, "persistent searchable clip")
+    }
+
+    func testWrongKeyDegradesGracefully() throws {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db1 = try DatabaseService(dbQueue: dbQueue, fieldEncryption: .ephemeral())
+        try db1.save(clip: ClipItem(stringValue: "unreadable later"))
+
+        // Same database, different key (e.g. Keychain entry lost):
+        // items surface with empty content instead of crashing or throwing.
+        let db2 = try DatabaseService(dbQueue: dbQueue, fieldEncryption: .ephemeral())
+        let items = try db2.fetchHistory(limit: 10)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.title, "")
+        XCTAssertNil(items.first?.stringValue)
+    }
+
+    func testMigrationEncryptsExistingPlaintextRows() throws {
+        let fe = FieldEncryption.ephemeral()
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+
+        // Build a pre-encryption (v9) database with a plaintext row,
+        // exactly as it would exist on disk before the upgrade.
+        let migrator = DatabaseService.makeMigrator(fieldEncryption: fe)
+        try migrator.migrate(dbQueue, upTo: "v9-addUpdatedAtIndex")
+
+        let legacyHash = ClipItem.computeHash(for: "legacy secret")
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO clipItem
+                        (id, contentHash, title, primaryType, stringValue, createdAt, updatedAt, isPinned, isMemory)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
+                    """,
+                arguments: ["legacy-1", legacyHash, "legacy secret", "string", "legacy secret", Date(), Date()]
+            )
+            try db.execute(
+                sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                arguments: ["legacy-1", "legacy secret", "legacy secret"]
+            )
+        }
+
+        // Constructing the service runs v10 and rebuilds the search index
+        let db = try DatabaseService(dbQueue: dbQueue, fieldEncryption: fe)
+
+        let items = try db.fetchHistory(limit: 10)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.title, "legacy secret")
+        XCTAssertEqual(items.first?.stringValue, "legacy secret")
+
+        guard let row = try dbQueue.read({ db in
+            try Row.fetchOne(db, sql: "SELECT * FROM clipItem WHERE id = 'legacy-1'")
+        }) else {
+            XCTFail("Row not found")
+            return
+        }
+        XCTAssertFalse(row.columnNames.contains("stringValue"))
+        XCTAssertEqual(row["contentHash"] as String, fe.keyedHash(legacyHash))
+
+        // Old plaintext FTS table is gone; search works via the memory index
+        let ftsTableCount = try dbQueue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM main.sqlite_master WHERE name LIKE 'clipItemFts%'"
+            ) ?? -1
+        }
+        XCTAssertEqual(ftsTableCount, 0)
+        XCTAssertEqual(try db.searchClips(query: "legacy").count, 1)
+
+        // Post-migration dedup still matches the same content
+        try db.save(clip: ClipItem(stringValue: "legacy secret"))
+        XCTAssertEqual(try db.fetchHistory(limit: 10).count, 1)
     }
 }
 

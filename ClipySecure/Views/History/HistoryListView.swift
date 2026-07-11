@@ -58,7 +58,7 @@ struct HistoryListView: View {
             do {
                 for try await fetchedItems in observation.values(in: databaseService.dbQueue) {
                     if searchText.isEmpty {
-                        items = fetchedItems
+                        items = databaseService.decrypt(fetchedItems)
                     }
                 }
             } catch {

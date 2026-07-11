@@ -1,8 +1,10 @@
 import Foundation
 import GRDB
+import OSLog
 
 final class DatabaseService: Sendable {
     let dbQueue: DatabaseQueue
+    private let fieldEncryption: FieldEncryption
 
     init() throws {
         let appSupportURL = FileManager.default
@@ -22,31 +24,46 @@ final class DatabaseService: Sendable {
 
         let dbPath = appSupportURL.appendingPathComponent("clipy.db").path
 
-        // SQLCipher encryption key infrastructure is ready (EncryptionKeyManager).
-        // Actual SQLCipher activation deferred — the standard GRDB SPM product does
-        // not bundle SQLCipher; integrating it requires swapping to GRDBCipher or a
-        // custom SQLite build. The key manager is wired so encryption can be enabled
-        // in a follow-up with minimal changes:
-        //
-        //   let keyManager = EncryptionKeyManager()
-        //   let key = try keyManager.getOrCreateDatabaseKey()
-        //   var config = Configuration()
-        //   config.prepareDatabase { db in
-        //       try db.usePassphrase(key)
-        //   }
-        //   dbQueue = try DatabaseQueue(path: dbPath, configuration: config)
-
+        // Sensitive content is encrypted field-by-field with AES-GCM before it
+        // reaches SQLite (see FieldEncryption). Full-database SQLCipher remains
+        // an option once GRDB ships native package-trait support.
+        fieldEncryption = try FieldEncryption(keyManager: EncryptionKeyManager())
         dbQueue = try DatabaseQueue(path: dbPath)
-        try Self.applyMigrations(to: dbQueue)
+        try Self.setupDatabase(dbQueue, fieldEncryption: fieldEncryption)
     }
 
-    /// Test-only initializer using an in-memory database.
-    init(dbQueue: DatabaseQueue) throws {
+    /// Test-only initializer using an in-memory database and an ephemeral
+    /// encryption key that never touches the Keychain.
+    convenience init(dbQueue: DatabaseQueue) throws {
+        try self.init(dbQueue: dbQueue, fieldEncryption: .ephemeral())
+    }
+
+    /// Test-only initializer that also takes the encryption key, so tests can
+    /// share a key across service instances on the same database.
+    init(dbQueue: DatabaseQueue, fieldEncryption: FieldEncryption) throws {
         self.dbQueue = dbQueue
-        try Self.applyMigrations(to: dbQueue)
+        self.fieldEncryption = fieldEncryption
+        try Self.setupDatabase(dbQueue, fieldEncryption: fieldEncryption)
     }
 
-    private static func applyMigrations(to dbQueue: DatabaseQueue) throws {
+    private static func setupDatabase(_ dbQueue: DatabaseQueue, fieldEncryption: FieldEncryption) throws {
+        let migrator = makeMigrator(fieldEncryption: fieldEncryption)
+
+        // When migrations are pending, VACUUM afterwards: v10 rewrites plaintext
+        // content into encrypted columns, and VACUUM overwrites the freed pages
+        // so the old plaintext cannot be recovered from the file.
+        let hadPendingMigrations = try dbQueue.read { db in
+            try !migrator.hasCompletedMigrations(db)
+        }
+        try migrator.migrate(dbQueue)
+        if hadPendingMigrations {
+            try dbQueue.vacuum()
+        }
+
+        try setupSearchIndex(dbQueue, fieldEncryption: fieldEncryption)
+    }
+
+    static func makeMigrator(fieldEncryption: FieldEncryption) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
 
         migrator.registerMigration("v1-createClipItems") { db in
@@ -178,71 +195,262 @@ final class DatabaseService: Sendable {
             )
         }
 
-        try migrator.migrate(dbQueue)
-    }  // end applyMigrations
+        migrator.registerMigration("v10-encryptClipContent") { db in
+            try db.alter(table: "clipItem") { t in
+                t.add(column: "encTitle", .blob)
+                t.add(column: "encStringValue", .blob)
+                t.add(column: "encRtfData", .blob)
+                t.add(column: "encPdfData", .blob)
+                t.add(column: "encImageData", .blob)
+                t.add(column: "encFilenames", .blob)
+                t.add(column: "encUrls", .blob)
+            }
 
-    /// Columns to select when we only need metadata (no blobs).
-    /// Used by observations and menu rendering to avoid loading images/RTF/PDF.
-    static let lightweightColumns = [
-        Column("id"), Column("contentHash"), Column("title"), Column("primaryType"),
-        Column("stringValue"), Column("createdAt"), Column("updatedAt"),
-        Column("types"), Column("filenames"), Column("urls"), Column("sourceAppId"),
-        Column("isPinned"), Column("isMemory"), Column("memorizedAt"),
-    ]
+            // Encrypt every existing row's content, and replace the plain
+            // SHA-256 contentHash with a keyed hash so the file cannot be used
+            // to confirm or crack clipboard content offline.
+            let ids = try String.fetchAll(db, sql: "SELECT id FROM clipItem")
+            for id in ids {
+                guard let row = try Row.fetchOne(
+                    db,
+                    sql: """
+                        SELECT contentHash, title, stringValue, rtfData, pdfData,
+                               imageData, filenames, urls
+                        FROM clipItem WHERE id = ?
+                        """,
+                    arguments: [id]
+                ) else { continue }
 
-    /// Fetch a single full ClipItem by id (including blobs), for paste time.
-    func fetchClipItem(id: String) throws -> ClipItem? {
-        try dbQueue.read { db in
-            try ClipItem.fetchOne(db, id: id)
+                let title: String = row["title"]
+                let stringValue: String? = row["stringValue"]
+                let rtfData: Data? = row["rtfData"]
+                let pdfData: Data? = row["pdfData"]
+                let imageData: Data? = row["imageData"]
+                let filenames: String? = row["filenames"]
+                let urls: String? = row["urls"]
+                let contentHash: String = row["contentHash"]
+
+                try db.execute(
+                    sql: """
+                        UPDATE clipItem SET
+                            contentHash = ?,
+                            encTitle = ?,
+                            encStringValue = ?,
+                            encRtfData = ?,
+                            encPdfData = ?,
+                            encImageData = ?,
+                            encFilenames = ?,
+                            encUrls = ?
+                        WHERE id = ?
+                        """,
+                    arguments: [
+                        fieldEncryption.keyedHash(contentHash),
+                        try fieldEncryption.encrypt(title),
+                        try stringValue.map { try fieldEncryption.encrypt($0) },
+                        try rtfData.map { try fieldEncryption.encrypt($0) },
+                        try pdfData.map { try fieldEncryption.encrypt($0) },
+                        try imageData.map { try fieldEncryption.encrypt($0) },
+                        try filenames.map { try fieldEncryption.encrypt($0) },
+                        try urls.map { try fieldEncryption.encrypt($0) },
+                        id,
+                    ]
+                )
+            }
+
+            // Drop the plaintext columns entirely — content can no longer be
+            // written to disk unencrypted, even by accident.
+            try db.alter(table: "clipItem") { t in
+                t.drop(column: "title")
+                t.drop(column: "stringValue")
+                t.drop(column: "rtfData")
+                t.drop(column: "pdfData")
+                t.drop(column: "imageData")
+                t.drop(column: "filenames")
+                t.drop(column: "urls")
+            }
+
+            // The on-disk FTS index holds plaintext content. The search index
+            // now lives in an attached in-memory database (see setupSearchIndex).
+            try db.execute(sql: "DROP TABLE IF EXISTS clipItemFts")
         }
+
+        return migrator
     }
 
-    // MARK: - ClipItem CRUD
+    /// FTS5 needs plaintext to tokenize, so the search index lives in an
+    /// attached in-memory database that is rebuilt at launch — searchable text
+    /// never reaches disk. DatabaseQueue uses a single connection, so the
+    /// attachment persists for the whole app session.
+    private static func setupSearchIndex(_ dbQueue: DatabaseQueue, fieldEncryption: FieldEncryption) throws {
+        let isAttached = try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "PRAGMA database_list")
+                .contains { ($0["name"] as String?) == "ftsmem" }
+        }
+        if !isAttached {
+            // ATTACH cannot run inside a transaction.
+            try dbQueue.writeWithoutTransaction { db in
+                try db.execute(sql: "ATTACH DATABASE ':memory:' AS ftsmem")
+            }
+        }
 
-    func save(clip: ClipItem) throws {
         try dbQueue.write { db in
-            if var existing = try ClipItem
-                .filter(Column("contentHash") == clip.contentHash)
-                .fetchOne(db)
-            {
-                existing.updatedAt = Date()
-                try existing.update(db)
+            try db.execute(sql: "DROP TABLE IF EXISTS ftsmem.clipItemFts")
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE ftsmem.clipItemFts
+                USING fts5(clipId UNINDEXED, title, stringValue)
+                """)
 
-                // Update FTS entry
+            let cursor = try Row.fetchCursor(
+                db,
+                sql: "SELECT id, encTitle, encStringValue FROM clipItem"
+            )
+            while let row = try cursor.next() {
+                let id: String = row["id"]
+                var title = ""
+                var stringValue = ""
+                do {
+                    if let enc = row["encTitle"] as Data? {
+                        title = try fieldEncryption.decryptString(enc)
+                    }
+                    if let enc = row["encStringValue"] as Data? {
+                        stringValue = try fieldEncryption.decryptString(enc)
+                    }
+                } catch {
+                    Logger.database.error("Failed to decrypt clip for search indexing: \(error.localizedDescription)")
+                }
                 try db.execute(
-                    sql: "DELETE FROM clipItemFts WHERE clipId = ?",
-                    arguments: [existing.id]
-                )
-                try db.execute(
-                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
-                    arguments: [existing.id, existing.title, existing.stringValue ?? ""]
-                )
-            } else {
-                try clip.insert(db)
-
-                // Add FTS entry
-                try db.execute(
-                    sql: "INSERT INTO clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
-                    arguments: [clip.id, clip.title, clip.stringValue ?? ""]
+                    sql: "INSERT INTO ftsmem.clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [id, title, stringValue]
                 )
             }
         }
     }
 
+    // MARK: - Encryption
+
+    /// Returns a copy with content encrypted into the enc* columns and the
+    /// contentHash keyed. Every ClipItem write goes through this.
+    private func encryptForStorage(_ clip: ClipItem) throws -> ClipItem {
+        var stored = clip
+        stored.contentHash = fieldEncryption.keyedHash(clip.contentHash)
+        stored.encTitle = try fieldEncryption.encrypt(clip.title)
+        stored.encStringValue = try clip.stringValue.map { try fieldEncryption.encrypt($0) }
+        stored.encRtfData = try clip.rtfData.map { try fieldEncryption.encrypt($0) }
+        stored.encPdfData = try clip.pdfData.map { try fieldEncryption.encrypt($0) }
+        stored.encImageData = try clip.imageData.map { try fieldEncryption.encrypt($0) }
+        stored.encFilenames = try clip.filenames.map { try fieldEncryption.encrypt($0) }
+        stored.encUrls = try clip.urls.map { try fieldEncryption.encrypt($0) }
+        return stored
+    }
+
+    /// Populates the in-memory plaintext fields from the enc* columns.
+    /// Tolerant of per-item failures (logged): a clip that cannot be decrypted
+    /// shows up with empty content rather than breaking the whole list.
+    func decrypt(_ clip: ClipItem) -> ClipItem {
+        var item = clip
+        do {
+            if let enc = clip.encTitle {
+                item.title = try fieldEncryption.decryptString(enc)
+            }
+            if let enc = clip.encStringValue {
+                item.stringValue = try fieldEncryption.decryptString(enc)
+            }
+            if let enc = clip.encRtfData {
+                item.rtfData = try fieldEncryption.decryptData(enc)
+            }
+            if let enc = clip.encPdfData {
+                item.pdfData = try fieldEncryption.decryptData(enc)
+            }
+            if let enc = clip.encImageData {
+                item.imageData = try fieldEncryption.decryptData(enc)
+            }
+            if let enc = clip.encFilenames {
+                item.filenames = try fieldEncryption.decryptString(enc)
+            }
+            if let enc = clip.encUrls {
+                item.urls = try fieldEncryption.decryptString(enc)
+            }
+        } catch {
+            Logger.database.error("Failed to decrypt clip: \(error.localizedDescription)")
+        }
+        return item
+    }
+
+    func decrypt(_ clips: [ClipItem]) -> [ClipItem] {
+        clips.map { decrypt($0) }
+    }
+
+    /// Columns to select when we only need metadata (no blobs).
+    /// Used by observations and menu rendering to avoid loading images/RTF/PDF.
+    static let lightweightColumns = [
+        Column("id"), Column("contentHash"), Column("primaryType"),
+        Column("createdAt"), Column("updatedAt"),
+        Column("types"), Column("sourceAppId"),
+        Column("isPinned"), Column("isMemory"), Column("memorizedAt"),
+        Column("encTitle"), Column("encStringValue"),
+        Column("encFilenames"), Column("encUrls"),
+    ]
+
+    /// Fetch a single full ClipItem by id (including blobs), for paste time.
+    func fetchClipItem(id: String) throws -> ClipItem? {
+        let row = try dbQueue.read { db in
+            try ClipItem.fetchOne(db, id: id)
+        }
+        return row.map { decrypt($0) }
+    }
+
+    // MARK: - ClipItem CRUD
+
+    /// Expects a freshly created ClipItem whose contentHash is the plain
+    /// creation-time SHA-256; the stored hash is keyed by encryptForStorage.
+    /// To reorder an existing clip, use touch(clipId:) instead.
+    func save(clip: ClipItem) throws {
+        let stored = try encryptForStorage(clip)
+        try dbQueue.write { db in
+            if var existing = try ClipItem
+                .filter(Column("contentHash") == stored.contentHash)
+                .fetchOne(db)
+            {
+                // Content is unchanged, so its search index entry stays valid.
+                existing.updatedAt = Date()
+                try existing.update(db)
+            } else {
+                try stored.insert(db)
+
+                // Add search index entry (in-memory only, never on disk)
+                try db.execute(
+                    sql: "INSERT INTO ftsmem.clipItemFts(clipId, title, stringValue) VALUES (?, ?, ?)",
+                    arguments: [stored.id, clip.title, clip.stringValue ?? ""]
+                )
+            }
+        }
+    }
+
+    /// Bumps a clip's updatedAt so it moves to the top of history.
+    func touch(clipId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE clipItem SET updatedAt = ? WHERE id = ?",
+                arguments: [Date(), clipId]
+            )
+        }
+    }
+
     func fetchHistory(limit: Int = Constants.defaultHistoryLimit) throws -> [ClipItem] {
-        try dbQueue.read { db in
+        let rows = try dbQueue.read { db in
             try ClipItem
                 .order(Column("updatedAt").desc)
                 .limit(limit)
                 .fetchAll(db)
         }
+        return decrypt(rows)
     }
 
     func deleteAll() throws {
         try dbQueue.write { db in
             // Preserve memory items
             try db.execute(sql: """
-                DELETE FROM clipItemFts WHERE clipId IN (
+                DELETE FROM ftsmem.clipItemFts WHERE clipId IN (
                     SELECT id FROM clipItem WHERE isMemory = 0
                 )
                 """)
@@ -256,7 +464,7 @@ final class DatabaseService: Sendable {
             // Clean up FTS entries for clips about to be deleted, preserving pinned/memory items
             try db.execute(
                 sql: """
-                    DELETE FROM clipItemFts WHERE clipId IN (
+                    DELETE FROM ftsmem.clipItemFts WHERE clipId IN (
                         SELECT id FROM clipItem
                         WHERE isPinned = 0 AND isMemory = 0
                         AND id NOT IN (
@@ -432,15 +640,16 @@ final class DatabaseService: Sendable {
             .replacingOccurrences(of: "\"", with: "\"\"")
         let ftsQuery = "\"\(sanitized)\"*"
 
-        return try dbQueue.read { db in
+        let rows = try dbQueue.read { db in
             try ClipItem.fetchAll(db, sql: """
                 SELECT clipItem.* FROM clipItem
-                JOIN clipItemFts ON clipItemFts.clipId = clipItem.id
-                WHERE clipItemFts MATCH ?
+                JOIN ftsmem.clipItemFts AS fts ON fts.clipId = clipItem.id
+                WHERE fts.clipItemFts MATCH ?
                 ORDER BY clipItem.updatedAt DESC
                 LIMIT ?
                 """, arguments: [ftsQuery, limit])
         }
+        return decrypt(rows)
     }
 
 }

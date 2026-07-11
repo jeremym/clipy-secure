@@ -5,23 +5,43 @@ import GRDB
 struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Sendable {
     var id: String
     var contentHash: String
-    var title: String
     var primaryType: String
-    var stringValue: String?
     var createdAt: Date
     var updatedAt: Date
 
     // Phase 2 columns
     var types: String?
-    var rtfData: Data?
-    var pdfData: Data?
-    var imageData: Data?
-    var filenames: String?
-    var urls: String?
     var sourceAppId: String?
     var isPinned: Bool
     var isMemory: Bool
     var memorizedAt: Date?
+
+    // Encrypted content columns — the only content that reaches disk.
+    var encTitle: Data?
+    var encStringValue: Data?
+    var encRtfData: Data?
+    var encPdfData: Data?
+    var encImageData: Data?
+    var encFilenames: Data?
+    var encUrls: Data?
+
+    // Plaintext content — in-memory only. Excluded from CodingKeys so GRDB
+    // can neither read nor write these as columns; DatabaseService populates
+    // them by decrypting the enc* columns.
+    var title: String = ""
+    var stringValue: String? = nil
+    var rtfData: Data? = nil
+    var pdfData: Data? = nil
+    var imageData: Data? = nil
+    var filenames: String? = nil
+    var urls: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, contentHash, primaryType, createdAt, updatedAt
+        case types, sourceAppId, isPinned, isMemory, memorizedAt
+        case encTitle, encStringValue, encRtfData, encPdfData, encImageData
+        case encFilenames, encUrls
+    }
 
     // MARK: - Text-only initializer (Phase 1 compat)
 

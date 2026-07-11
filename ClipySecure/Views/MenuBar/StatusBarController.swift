@@ -95,7 +95,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             do {
                 for try await items in observation.values(in: dbQueue) {
                     guard let self else { return }
-                    self.historyItems = items
+                    self.historyItems = self.databaseService.decrypt(items)
                 }
             } catch {
                 // Observation ended
@@ -120,7 +120,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             do {
                 for try await items in observation.values(in: dbQueue) {
                     guard let self else { return }
-                    self.memoryItems = items
+                    self.memoryItems = self.databaseService.decrypt(items)
                 }
             } catch {
                 // Observation ended
@@ -432,10 +432,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         // Reorder after paste: update the item's timestamp so it moves to top of history
         if Defaults[.reorderAfterPaste] {
-            var updated = item
-            updated.updatedAt = Date()
             do {
-                try databaseService.save(clip: updated)
+                try databaseService.touch(clipId: item.id)
             } catch {
                 Logger.database.error("Failed to reorder clip after paste: \(error.localizedDescription)")
             }
