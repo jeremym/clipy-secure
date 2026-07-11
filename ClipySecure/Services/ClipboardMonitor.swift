@@ -54,10 +54,12 @@ actor ClipboardMonitor {
 
         guard currentCount != lastSetChangeCount else { return }
 
-        // Check if current frontmost app is excluded
+        // Check if the copy could have come from an excluded app. The copy
+        // happened at most one polling interval ago, so pass that window.
         if let excludeService = excludeAppService {
+            let pollWindow = Defaults[.pollingInterval] + 0.1
             let excluded = await MainActor.run {
-                excludeService.isCurrentAppExcluded()
+                excludeService.isCurrentAppExcluded(pollWindow: pollWindow)
             }
             if excluded { return }
         }
@@ -76,7 +78,7 @@ actor ClipboardMonitor {
 
         let clip = ClipItem(content: content)
         do {
-            try databaseService.save(clip: clip)
+            try databaseService.save(clip: clip, overwriteDuplicates: Defaults[.overwriteSameHistory])
         } catch {
             Logger.database.error("Failed to save clip: \(error.localizedDescription)")
         }

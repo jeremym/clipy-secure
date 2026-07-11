@@ -3,10 +3,17 @@ import Foundation
 
 enum PasteboardReader: Sendable {
     private static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+    private static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
 
     @MainActor
     static func read(from pasteboard: NSPasteboard = .general, respectConcealedType: Bool = true) -> ClipContent? {
         guard let types = pasteboard.types else { return nil }
+
+        // Transient data is marked as never-to-be-stored by convention
+        // (nspasteboard.org) — always honored, independent of settings.
+        if types.contains(transientType) {
+            return nil
+        }
 
         if respectConcealedType, types.contains(concealedType) {
             return nil

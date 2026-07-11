@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clipboardMonitor: ClipboardMonitor?
     private var statusBarController: StatusBarController?
     private var dataCleanupService: DataCleanupService?
+    private var cleanupTask: Task<Void, Never>?
     private var snippetEditorWindow: SnippetEditorWindow?
     private var accessibilityService: AccessibilityService?
     private var pasteService: PasteService?
@@ -47,6 +48,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try cleanup.runCleanup()
             } catch {
                 Logger.database.error("Startup cleanup failed: \(error.localizedDescription)")
+            }
+
+            // Menu bar apps run for weeks — expiration must be enforced
+            // periodically, not just at launch.
+            cleanupTask = Task { [cleanup] in
+                while !Task.isCancelled {
+                    do {
+                        try await Task.sleep(for: .seconds(Constants.cleanupIntervalSeconds))
+                    } catch {
+                        return // cancelled
+                    }
+                    do {
+                        try cleanup.runCleanup()
+                    } catch {
+                        Logger.database.error("Periodic cleanup failed: \(error.localizedDescription)")
+                    }
+                }
             }
 
             let excludeService = ExcludeAppService(databaseService: dbService)
@@ -111,6 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        cleanupTask?.cancel()
+
         // Stop monitoring synchronously — async Task may not complete before exit.
         // The actor's stopMonitoring just cancels a Task, which is safe to assume
         // from the call to the underlying cancel() method. The semaphore ensures

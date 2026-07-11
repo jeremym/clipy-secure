@@ -322,9 +322,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func historyItemClicked(_ sender: NSMenuItem) {
-        let index = sender.tag
-        guard index >= 0, index < historyItems.count else { return }
-        pasteClipItem(historyItems[index])
+        guard let clipId = sender.representedObject as? String,
+              let item = historyItems.first(where: { $0.id == clipId }) else { return }
+        pasteClipItem(item)
     }
 
     @objc private func snippetClicked(_ sender: NSMenuItem) {
@@ -345,11 +345,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func saveToMemoryClicked(_ sender: NSMenuItem) {
-        let index = sender.tag
-        guard index >= 0, index < historyItems.count else { return }
-        let item = historyItems[index]
+        guard let clipId = sender.representedObject as? String,
+              historyItems.contains(where: { $0.id == clipId }) else { return }
         do {
-            try databaseService.setMemory(clipId: item.id)
+            try databaseService.setMemory(clipId: clipId)
         } catch {
             Logger.database.error("Failed to save to memory: \(error.localizedDescription)")
         }

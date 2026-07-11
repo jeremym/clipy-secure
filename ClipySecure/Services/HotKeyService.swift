@@ -51,6 +51,12 @@ final class HotKeyService {
             alert.alertStyle = .warning
             alert.addButton(withTitle: String(localized: "Clear"))
             alert.addButton(withTitle: String(localized: "Cancel"))
+            // Destructive action must not be the Return-key default — the
+            // alert can appear while the user is typing in another app.
+            alert.buttons[0].hasDestructiveAction = true
+            alert.buttons[0].keyEquivalent = ""
+            alert.buttons[1].keyEquivalent = "\r"
+            NSApp.activate()
             guard alert.runModal() == .alertFirstButtonReturn else { return }
             do {
                 try self?.databaseService.deleteAll()
