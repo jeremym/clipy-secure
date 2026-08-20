@@ -7,6 +7,7 @@ extension Defaults.Keys {
     static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 2)
     static let numberOfItemsInFolder = Key<Int>("numberOfItemsInFolder", default: 10)
     static let showNumbersInMenu = Key<Bool>("showNumbersInMenu", default: true)
+    static let showMenuAtMousePointer = Key<Bool>("showMenuAtMousePointer", default: true)
     static let reorderAfterPaste = Key<Bool>("reorderAfterPaste", default: true)
     static let showClearHistoryItem = Key<Bool>("showClearHistoryItem", default: true)
     static let showTooltips = Key<Bool>("showTooltips", default: true)

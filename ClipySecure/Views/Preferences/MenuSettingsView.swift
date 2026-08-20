@@ -6,6 +6,7 @@ struct MenuSettingsView: View {
     @Default(.showImagesInMenu) var showImagesInMenu
     @Default(.showClearHistoryItem) var showClearHistoryItem
     @Default(.reorderAfterPaste) var reorderAfterPaste
+    @Default(.showMenuAtMousePointer) var showMenuAtMousePointer
     @Default(.showTooltips) var showTooltips
     @Default(.tooltipMaxLength) var tooltipMaxLength
     @Default(.memorySnippetFolderName) var memorySnippetFolderName
@@ -28,12 +29,13 @@ struct MenuSettingsView: View {
             }
 
             Section {
+                Toggle("Open menu at mouse pointer", isOn: $showMenuAtMousePointer)
                 Toggle("Move pasted item to top", isOn: $reorderAfterPaste)
                 Toggle("Show \u{201C}Clear All\u{201D} in menu", isOn: $showClearHistoryItem)
             } header: {
                 Text("Behavior")
             } footer: {
-                Text("When \u{201C}Move pasted item to top\u{201D} is on, selecting an item bumps it to the first position so frequently used clips stay accessible.")
+                Text("When \u{201C}Open menu at mouse pointer\u{201D} is on, keyboard shortcuts open the clip menu where the cursor is instead of under the menu bar icon. When \u{201C}Move pasted item to top\u{201D} is on, selecting an item bumps it to the first position so frequently used clips stay accessible.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

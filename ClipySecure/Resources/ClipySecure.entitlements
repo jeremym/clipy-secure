@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-</dict>
+<!--
+  Intentionally empty.
+
+  com.apple.security.app-sandbox was removed: App Sandbox is incompatible with
+  being an Accessibility client. ClipySecure pastes by posting a synthetic Cmd-V
+  via CGEvent, which is precisely the cross-application control the sandbox
+  exists to prevent, so a sandboxed build never appears in System Settings >
+  Privacy & Security > Accessibility and auto-paste cannot work. Verified on
+  macOS 26: the sandboxed build was absent from that list both from /tmp and
+  from /Applications. This is also why the original Clipy is not sandboxed and
+  is not distributed on the Mac App Store.
+
+  Do NOT add network entitlements — the app is intentionally offline. Privacy
+  guarantees come from field-level AES-GCM encryption and the in-memory FTS
+  index, not from the sandbox.
+-->
+<dict/>
 </plist>

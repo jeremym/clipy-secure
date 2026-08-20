@@ -5,6 +5,7 @@ import SwiftUI
 final class SnippetEditorWindow {
     private var window: NSWindow?
     private var hostingController: NSHostingController<SnippetEditorView>?
+    private var notificationObserver: Any?
     private let viewModel: SnippetEditorViewModel
 
     init(viewModel: SnippetEditorViewModel) {
@@ -18,6 +19,8 @@ final class SnippetEditorWindow {
             return
         }
 
+        ActivationPolicyManager.beginWindowSession()
+
         let controller = NSHostingController(rootView: SnippetEditorView(viewModel: viewModel))
         hostingController = controller
 
@@ -29,23 +32,36 @@ final class SnippetEditorWindow {
         )
         window.title = String(localized: "Snippet Editor")
         window.isReleasedWhenClosed = false
-        window.center()
         window.minSize = NSSize(width: 600, height: 450)
-        window.contentViewController = controller
+        window.setCenteredContent(controller, size: NSSize(width: 900, height: 650))
         self.window = window
 
-        // Defer display to next run loop tick to avoid layout recursion on macOS 26.
-        // Setting contentViewController triggers SwiftUI layout; showing the window
-        // in the same tick triggers a second pass, causing recursion.
-        Task {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+        // The user can close this with the red button, which bypasses close();
+        // without observing that the app would never drop back to .accessory.
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleWindowClose()
+            }
         }
+
+        window.presentDeferred()
     }
 
     func close() {
         window?.close()
+    }
+
+    private func handleWindowClose() {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            notificationObserver = nil
+        }
         window = nil
         hostingController = nil
+        ActivationPolicyManager.endWindowSession()
     }
 }

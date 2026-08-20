@@ -39,6 +39,7 @@ private enum PreferencesTab: String, CaseIterable {
 @MainActor
 final class PreferencesWindow: NSObject, NSToolbarDelegate {
     private var window: NSWindow?
+    private var notificationObserver: Any?
     private let databaseService: DatabaseService
     private var selectedTab: PreferencesTab = .general
 
@@ -53,6 +54,8 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
             return
         }
 
+        ActivationPolicyManager.beginWindowSession()
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 620, height: 580),
             styleMask: [.titled, .closable],
@@ -60,7 +63,6 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
             defer: true
         )
         window.isReleasedWhenClosed = false
-        window.center()
 
         let toolbar = NSToolbar(identifier: "PreferencesToolbar")
         toolbar.delegate = self
@@ -72,15 +74,35 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
         self.window = window
         showTab(selectedTab)
 
-        Task {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+        // Centered only once the first tab's content and the toolbar are in
+        // place, so the frame being centered is the final one.
+        window.setContentSize(NSSize(width: 620, height: 580))
+        window.center()
+
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleWindowClose()
+            }
         }
+
+        window.presentDeferred()
     }
 
     func close() {
         window?.close()
+    }
+
+    private func handleWindowClose() {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            notificationObserver = nil
+        }
         window = nil
+        ActivationPolicyManager.endWindowSession()
     }
 
     // MARK: - Tab Switching
@@ -89,8 +111,10 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
         selectedTab = tab
         window?.title = tab.label
 
-        // Preserve window position when switching tabs
-        let savedFrame = window?.frame
+        // Preserve window position when switching tabs. Skipped on the initial
+        // show, where no content is installed yet and the frame is not yet
+        // meaningful — showWindow() centers once the real content is in place.
+        let savedFrame = window?.contentViewController == nil ? nil : window?.frame
 
         let view: AnyView
         switch tab {
