@@ -9,7 +9,8 @@ Privacy-first clipboard manager for macOS. Full rewrite of [Clipy](https://githu
 - **UI:** AppKit shell (NSStatusItem/NSWindow) + SwiftUI views via NSHostingController
 - **Database:** GRDB.swift (SQLite) with field-level AES-GCM encryption (CryptoKit); key in Keychain via `EncryptionKeyManager`
 - **Dependencies (SPM only):** GRDB.swift, KeyboardShortcuts, Defaults, LaunchAtLogin-Modern
-- **Branch:** `jeremym/clipy-secure-rebuild`
+- **Sandbox:** NOT sandboxed, deliberately — see "What NOT to Do"
+- **Main branch:** `develop` (also the GitHub default; there is no `main`)
 - **Target branch for PRs:** `develop`
 
 ## Build & Test
@@ -19,7 +20,7 @@ xcodebuild -project ClipySecure.xcodeproj -scheme ClipySecure -destination 'plat
 xcodebuild -project ClipySecure.xcodeproj -scheme ClipySecure -destination 'platform=macOS' test
 ```
 
-Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with an ephemeral encryption key — no Keychain access. 33 unit tests covering DB CRUD, FTS search, hash stability, pinned/memory preservation, snippets, excluded apps, import deduplication, encryption at rest, the v10 encryption migration, and security-fix regressions (transient pasteboard, duplicate handling, cleanup counts).
+Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with an ephemeral encryption key — no Keychain access. 34 unit tests covering DB CRUD, FTS search, hash stability, pinned/memory preservation, snippets, excluded apps, import deduplication, encryption at rest, the v10 encryption migration, and security-fix regressions (transient pasteboard, duplicate handling, cleanup counts).
 
 ## Architecture
 
@@ -41,6 +42,8 @@ Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with a
 - **FTS5:** Standalone table with `clipId UNINDEXED` join column — NOT content-synced (broken with GRDB text PKs).
 - **Image thumbnails:** CGContext-based drawing (NOT `lockFocus`/`unlockFocus` — deprecated).
 - **Preferences window:** NSToolbar with `.preference` style, NOT SwiftUI TabView.
+- **Window presentation:** `LSUIElement` means the app starts `.accessory` — no Dock icon, no Cmd-Tab, and macOS 14+ cooperative activation ignores `NSApp.activate()`, so windows open *behind* everything. Any user-facing window brackets itself with `ActivationPolicyManager.begin/endWindowSession()` (reference counted) and presents via `NSWindow.presentDeferred()`, which activates before ordering front.
+- **Main menu:** there is no nib, so `MainMenu.install()` builds `NSApp.mainMenu` at launch. Without it Cmd-Q does nothing *and* Cmd-C/X/V/Z die in text fields — AppKit routes those through main-menu key equivalents.
 
 ## What NOT to Do
 
@@ -53,6 +56,9 @@ Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with a
 - Do not add plaintext content columns to `clipItem` or write clip content to disk unencrypted — content goes in `enc*` columns only
 - Do not add network entitlements — app is intentionally offline (no telemetry)
 - Do not use `NSApp.activate(ignoringOtherApps:)` — deprecated in macOS 14; use `NSApp.activate()` instead
+- Do not re-add `com.apple.security.app-sandbox` — App Sandbox is incompatible with being an Accessibility client, so a sandboxed build never appears in System Settings > Privacy & Security > Accessibility and auto-paste cannot work (verified on macOS 26 from both `/tmp` and `/Applications`). Privacy comes from field-level encryption, not the sandbox
+- Do not centre a window before assigning `contentViewController` — that assignment resizes to the hosting controller's fitting size, and SwiftUI `maxWidth: .infinity` makes that screen-wide; the shrink back is top-left anchored and pins the window under the menu bar. Use `NSWindow.setCenteredContent(_:size:)`
+- Do not block the main thread in `applicationWillTerminate` — `AppDelegate` is `@MainActor`, so `Task {}` inherits main-actor isolation and cannot run while the main thread waits, which deadlocks quit
 
 ## Project Status
 

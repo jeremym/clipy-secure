@@ -162,18 +162,67 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Hotkey Menu Actions
 
     func popUpMainMenu() {
-        menuMode = .full
-        statusItem?.button?.performClick(nil)
+        popUp(mode: .full)
     }
 
     func popUpHistoryMenu() {
-        menuMode = .historyOnly
-        statusItem?.button?.performClick(nil)
+        popUp(mode: .historyOnly)
     }
 
     func popUpSnippetMenu() {
-        menuMode = .snippetsOnly
-        statusItem?.button?.performClick(nil)
+        popUp(mode: .snippetsOnly)
+    }
+
+    /// Presents the clip menu for `mode`, either under the mouse pointer or from
+    /// the status bar icon.
+    ///
+    /// Clicking the status item is the only way to anchor a menu *to* it, so the
+    /// cursor case builds a detached menu instead. It shares `self` as delegate,
+    /// so `menuNeedsUpdate(_:)` populates it identically — `menuMode` is read
+    /// there, which is why it must be set first.
+    private func popUp(mode: MenuMode) {
+        menuMode = mode
+
+        guard Defaults[.showMenuAtMousePointer] else {
+            statusItem?.button?.performClick(nil)
+            return
+        }
+
+        let menu = NSMenu()
+        menu.delegate = self
+
+        // Populate up front so `menu.size` is known before positioning. popUp
+        // will call this again via the delegate; menuNeedsUpdate starts with
+        // removeAllItems(), so rebuilding is idempotent.
+        menuNeedsUpdate(menu)
+
+        // A nil view means `at` is in screen coordinates, which is what
+        // NSEvent.mouseLocation already reports. AppKit clamps horizontally on
+        // its own, but vertically it just makes the menu scroll — so lift it
+        // explicitly instead.
+        menu.popUp(positioning: nil, at: originFittingOnScreen(for: menu), in: nil)
+    }
+
+    /// Mouse location, raised so the menu fits on screen when the pointer is low.
+    ///
+    /// A menu opens with its top edge at the given point and grows downward, so a
+    /// pointer near the bottom of the display leaves it almost no room and macOS
+    /// turns it into a scrolling menu. Shifting the origin up so the bottom edge
+    /// lands just inside the visible frame keeps every item reachable without
+    /// moving the menu when the pointer is high enough already.
+    private func originFittingOnScreen(for menu: NSMenu) -> NSPoint {
+        var location = NSEvent.mouseLocation
+
+        let screen = NSScreen.screens.first { $0.frame.contains(location) } ?? NSScreen.main
+        guard let visibleFrame = screen?.visibleFrame else { return location }
+
+        let menuHeight = menu.size.height
+        guard location.y - menuHeight < visibleFrame.minY else { return location }
+
+        // Clamped at the top for menus taller than the display — those stay
+        // scrollable, which is the best available outcome.
+        location.y = min(visibleFrame.minY + menuHeight, visibleFrame.maxY)
+        return location
     }
 
     // MARK: - NSMenuDelegate
