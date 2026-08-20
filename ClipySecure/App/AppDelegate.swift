@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: OnboardingWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Must precede any window: supplies Cmd-Q and the standard editing key
+        // equivalents, which AppKit routes through the main menu.
+        MainMenu.install()
+
         if Defaults[.hasCompletedOnboarding] {
             startServices()
         } else {
@@ -131,17 +135,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         cleanupTask?.cancel()
 
-        // Stop monitoring synchronously — async Task may not complete before exit.
-        // The actor's stopMonitoring just cancels a Task, which is safe to assume
-        // from the call to the underlying cancel() method. The semaphore ensures
-        // we block until the actor has processed the message.
+        // Best effort, never blocking. The previous version created a Task and
+        // waited on a DispatchSemaphore for it — a guaranteed deadlock: this
+        // class is @MainActor, so `Task {}` inherited main-actor isolation and
+        // could not start while the main thread sat in semaphore.wait(). Quit
+        // from the status bar menu hung the app permanently.
+        //
+        // There is also nothing to wait for. stopMonitoring() only cancels the
+        // polling task; every clip is committed by its own GRDB write as it is
+        // captured, so process exit cannot lose or corrupt data. `Task.detached`
+        // avoids inheriting the main actor so it can run if the run loop turns
+        // once more before exit, and is harmless if it doesn't.
         if let monitor = clipboardMonitor {
-            let semaphore = DispatchSemaphore(value: 0)
-            Task {
-                await monitor.stopMonitoring()
-                semaphore.signal()
-            }
-            semaphore.wait()
+            Task.detached { await monitor.stopMonitoring() }
         }
     }
 }

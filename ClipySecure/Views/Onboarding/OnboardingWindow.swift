@@ -21,6 +21,11 @@ final class OnboardingWindow {
             return
         }
 
+        // Onboarding is the very first thing a new user sees. Without a Dock icon
+        // and a Cmd-Tab entry it opens behind whatever they already have open and
+        // the app looks like it failed to launch.
+        ActivationPolicyManager.beginWindowSession()
+
         let view = OnboardingView(onComplete: { [weak self] in
             self?.didComplete = true
             self?.window?.close()
@@ -39,9 +44,7 @@ final class OnboardingWindow {
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 640, height: 480)
         window.contentMaxSize = NSSize(width: 640, height: 480)
-        window.center()
-        window.contentViewController = controller
-        window.setContentSize(NSSize(width: 640, height: 480))
+        window.setCenteredContent(controller, size: NSSize(width: 640, height: 480))
         self.window = window
 
         notificationObserver = NotificationCenter.default.addObserver(
@@ -54,10 +57,7 @@ final class OnboardingWindow {
             }
         }
 
-        Task {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
-        }
+        window.presentDeferred()
     }
 
     private func handleWindowClose() {
@@ -67,6 +67,7 @@ final class OnboardingWindow {
         }
         window = nil
         hostingController = nil
+        ActivationPolicyManager.endWindowSession()
         if didComplete {
             onComplete?()
         } else {
