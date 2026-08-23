@@ -10,8 +10,8 @@ Privacy-first clipboard manager for macOS. Full rewrite of [Clipy](https://githu
 - **Database:** GRDB.swift (SQLite) with field-level AES-GCM encryption (CryptoKit); key in Keychain via `EncryptionKeyManager`
 - **Dependencies (SPM only):** GRDB.swift, KeyboardShortcuts, Defaults, LaunchAtLogin-Modern
 - **Sandbox:** NOT sandboxed, deliberately — see "What NOT to Do"
-- **Main branch:** `develop` (also the GitHub default; there is no `main`)
-- **Target branch for PRs:** `develop`
+- **Main branch:** `main` (GitHub default). `develop` is the integration branch and currently tracks `main`
+- **Target branch for PRs:** `main`
 
 ## Build & Test
 
@@ -21,6 +21,49 @@ xcodebuild -project ClipySecure.xcodeproj -scheme ClipySecure -destination 'plat
 ```
 
 Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with an ephemeral encryption key — no Keychain access. 34 unit tests covering DB CRUD, FTS search, hash stability, pinned/memory preservation, snippets, excluded apps, import deduplication, encryption at rest, the v10 encryption migration, and security-fix regressions (transient pasteboard, duplicate handling, cleanup counts).
+
+### Running the app locally (signed)
+
+Use the scripts, not a bare `xcodebuild`, for any build you intend to actually run:
+
+```bash
+./scripts/create-signing-cert.sh   # once per machine
+./scripts/install-local.sh         # build + sign + install to /Applications + launch
+```
+
+`install-local.sh` accepts `CODESIGN_IDENTITY` (default `ClipySecure Development`) and
+`SKIP_LAUNCH=1`. It aborts if the resulting designated requirement is cdhash-pinned,
+which would mean signing silently fell back to ad-hoc.
+
+**Why this matters.** Ad-hoc signing — what `xcodebuild` does by default — produces a
+designated requirement pinned to the binary hash:
+
+```
+designated => cdhash H"8924fd1c11a9ca..."
+```
+
+TCC binds the Accessibility grant to that requirement, so **every rebuild looks like a
+different app** that merely shares a bundle ID. The stale entry stays in System Settings
+> Privacy & Security > Accessibility pointing at a binary that no longer exists, toggling
+it off and on does nothing, and auto-paste breaks. Signing with a certificate — even a
+self-signed one — makes the requirement identity-based and therefore stable:
+
+```
+designated => identifier "com.clipysecure.app" and certificate leaf = H"..."
+```
+
+The script also passes `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO`, which keeps the debug
+entitlement `com.apple.security.get-task-allow` out of Release builds; Xcode injects it
+for any non-Developer-ID identity.
+
+If a stale grant is still stuck, clear it once and re-grant:
+
+```bash
+tccutil reset Accessibility com.clipysecure.app
+```
+
+The self-signed cert is local-only — Gatekeeper still blocks the app on other machines.
+Distribution needs a paid Apple Developer ID plus notarization.
 
 ## Architecture
 
@@ -56,6 +99,7 @@ Tests use an in-memory database (`DatabaseService(dbQueue:)` initializer) with a
 - Do not add plaintext content columns to `clipItem` or write clip content to disk unencrypted — content goes in `enc*` columns only
 - Do not add network entitlements — app is intentionally offline (no telemetry)
 - Do not use `NSApp.activate(ignoringOtherApps:)` — deprecated in macOS 14; use `NSApp.activate()` instead
+- Do not install an ad-hoc signed build you intend to keep using — the Accessibility grant is bound to the cdhash and breaks on every rebuild. Use `./scripts/install-local.sh`
 - Do not re-add `com.apple.security.app-sandbox` — App Sandbox is incompatible with being an Accessibility client, so a sandboxed build never appears in System Settings > Privacy & Security > Accessibility and auto-paste cannot work (verified on macOS 26 from both `/tmp` and `/Applications`). Privacy comes from field-level encryption, not the sandbox
 - Do not centre a window before assigning `contentViewController` — that assignment resizes to the hosting controller's fitting size, and SwiftUI `maxWidth: .infinity` makes that screen-wide; the shrink back is top-left anchored and pins the window under the menu bar. Use `NSWindow.setCenteredContent(_:size:)`
 - Do not block the main thread in `applicationWillTerminate` — `AppDelegate` is `@MainActor`, so `Task {}` inherits main-actor isolation and cannot run while the main thread waits, which deadlocks quit
