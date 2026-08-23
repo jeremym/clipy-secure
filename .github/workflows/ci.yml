@@ -1,10 +1,14 @@
 name: CI
 
+# CI is driven by `main` only. `develop` is an integration branch — pushes to it
+# deliberately do not burn CI minutes. A pull_request trigger keyed on `main`
+# still runs for any PR *targeting* main, including develop -> main at release
+# time, so nothing reaches main unverified.
 on:
   push:
-    branches: [develop]
+    branches: [main]
   pull_request:
-    branches: [develop]
+    branches: [main]
 
 jobs:
   build-and-test:

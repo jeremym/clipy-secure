@@ -10,8 +10,9 @@ Privacy-first clipboard manager for macOS. Full rewrite of [Clipy](https://githu
 - **Database:** GRDB.swift (SQLite) with field-level AES-GCM encryption (CryptoKit); key in Keychain via `EncryptionKeyManager`
 - **Dependencies (SPM only):** GRDB.swift, KeyboardShortcuts, Defaults, LaunchAtLogin-Modern
 - **Sandbox:** NOT sandboxed, deliberately — see "What NOT to Do"
-- **Main branch:** `main` (GitHub default). `develop` is the integration branch and currently tracks `main`
-- **Target branch for PRs:** `main`
+- **Main branch:** `main` (GitHub default) — the only branch that drives CI
+- **Integration branch:** `develop` — deliberately does *not* trigger CI on push
+- **Target branch for PRs:** `main` (a PR targeting `main` runs CI whatever branch it comes from)
 
 ## Build & Test
 
