@@ -18,6 +18,7 @@
 		A10000010000000000000104 /* ClipboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000104 /* ClipboardMonitor.swift */; };
 		A10000010000000000000105 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000105 /* StatusBarController.swift */; };
 		A10000010000000000000260 /* ClipMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000260 /* ClipMenuBuilder.swift */; };
+		A10000010000000000000261 /* MenuKeyRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000261 /* MenuKeyRouter.swift */; };
 		A10000010000000000000106 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000106 /* main.swift */; };
 		A10000010000000000000900 /* WindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000900 /* WindowPresentation.swift */; };
 		A10000010000000000000901 /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000901 /* MainMenu.swift */; };
@@ -85,6 +86,7 @@
 		A20000010000000000000104 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMonitor.swift; sourceTree = "<group>"; };
 		A20000010000000000000105 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		A20000010000000000000260 /* ClipMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipMenuBuilder.swift; sourceTree = "<group>"; };
+		A20000010000000000000261 /* MenuKeyRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuKeyRouter.swift; sourceTree = "<group>"; };
 		A20000010000000000000106 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		A20000010000000000000900 /* WindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPresentation.swift; sourceTree = "<group>"; };
 		A20000010000000000000901 /* MainMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenu.swift; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 			children = (
 				A20000010000000000000105 /* StatusBarController.swift */,
 				A20000010000000000000260 /* ClipMenuBuilder.swift */,
+				A20000010000000000000261 /* MenuKeyRouter.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -448,6 +451,7 @@
 				A10000010000000000000104 /* ClipboardMonitor.swift in Sources */,
 				A10000010000000000000105 /* StatusBarController.swift in Sources */,
 				A10000010000000000000260 /* ClipMenuBuilder.swift in Sources */,
+				A10000010000000000000261 /* MenuKeyRouter.swift in Sources */,
 				A10000010000000000000106 /* main.swift in Sources */,
 				A10000010000000000000900 /* WindowPresentation.swift in Sources */,
 				A10000010000000000000901 /* MainMenu.swift in Sources */,
