@@ -200,30 +200,57 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // NSEvent.mouseLocation already reports. AppKit clamps horizontally on
         // its own, but vertically it just makes the menu scroll — so lift it
         // explicitly instead.
-        menu.popUp(positioning: nil, at: originFittingOnScreen(for: menu), in: nil)
+        menu.popUp(positioning: nil, at: originClearOfCursor(for: menu), in: nil)
     }
 
-    /// Mouse location, raised so the menu fits on screen when the pointer is low.
+    /// Top-left corner for `menu` that keeps it on screen and out from under the
+    /// pointer.
     ///
-    /// A menu opens with its top edge at the given point and grows downward, so a
-    /// pointer near the bottom of the display leaves it almost no room and macOS
-    /// turns it into a scrolling menu. Shifting the origin up so the bottom edge
-    /// lands just inside the visible frame keeps every item reachable without
-    /// moving the menu when the pointer is high enough already.
-    private func originFittingOnScreen(for menu: NSMenu) -> NSPoint {
-        var location = NSEvent.mouseLocation
+    /// A menu grows down and to the right of the point it is given, so near an
+    /// edge macOS shifts it back over the cursor — which lands the pointer on
+    /// some arbitrary row, pre-highlighted. Placing the menu diagonally off the
+    /// cursor and picking the first corner that fits entirely inside the visible
+    /// frame keeps the pointer clear and stops AppKit from moving it at all.
+    private func originClearOfCursor(for menu: NSMenu) -> NSPoint {
+        let cursor = NSEvent.mouseLocation
 
-        let screen = NSScreen.screens.first { $0.frame.contains(location) } ?? NSScreen.main
-        guard let visibleFrame = screen?.visibleFrame else { return location }
+        let screen = NSScreen.screens.first { $0.frame.contains(cursor) } ?? NSScreen.main
+        guard let visibleFrame = screen?.visibleFrame else { return cursor }
 
-        let menuHeight = menu.size.height
-        guard location.y - menuHeight < visibleFrame.minY else { return location }
+        let size = menu.size
+        let gap = Self.menuCursorGap
 
-        // Clamped at the top for menus taller than the display — those stay
-        // scrollable, which is the best available outcome.
-        location.y = min(visibleFrame.minY + menuHeight, visibleFrame.maxY)
-        return location
+        let corners = [
+            NSPoint(x: cursor.x + gap, y: cursor.y - gap),                              // below right
+            NSPoint(x: cursor.x - gap - size.width, y: cursor.y - gap),                 // below left
+            NSPoint(x: cursor.x + gap, y: cursor.y + gap + size.height),                // above right
+            NSPoint(x: cursor.x - gap - size.width, y: cursor.y + gap + size.height),   // above left
+        ]
+
+        if let fitting = corners.first(where: { visibleFrame.contains(rect(topLeft: $0, size: size)) }) {
+            return fitting
+        }
+
+        // Taller than the screen allows in any corner: pin it to the top and
+        // take whichever side leaves the pointer beside the menu rather than on
+        // it. If neither side has room, clamping wins over an unreachable menu.
+        let top = min(visibleFrame.maxY, max(visibleFrame.minY + size.height, cursor.y))
+        if cursor.x + gap + size.width <= visibleFrame.maxX {
+            return NSPoint(x: cursor.x + gap, y: top)
+        }
+        if cursor.x - gap - size.width >= visibleFrame.minX {
+            return NSPoint(x: cursor.x - gap - size.width, y: top)
+        }
+        return NSPoint(x: min(cursor.x, visibleFrame.maxX - size.width), y: top)
     }
+
+    /// Rect a menu occupies when `popUp` is handed `topLeft`.
+    private func rect(topLeft: NSPoint, size: NSSize) -> NSRect {
+        NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+    }
+
+    /// Diagonal offset between the pointer and the menu's nearest corner.
+    private static let menuCursorGap: CGFloat = 8
 
     // MARK: - NSMenuDelegate
 
@@ -243,9 +270,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        MenuKeyRouter.shared.noteOpened(menu)
+    }
+
     func menuDidClose(_ menu: NSMenu) {
+        MenuKeyRouter.shared.noteClosed(menu)
         menuMode = .full
     }
+
 
     // MARK: - Menu Assembly
 
@@ -255,7 +288,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             items: historyItems,
             target: self,
             pasteAction: #selector(historyItemClicked(_:)),
-            memoryAction: #selector(saveToMemoryClicked(_:))
+            memoryAction: #selector(saveToMemoryClicked(_:)),
+            folderAction: #selector(historyFolderKeyPressed(_:))
         )
 
         if Defaults[.showClearHistoryItem] {
@@ -325,7 +359,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             items: historyItems,
             target: self,
             pasteAction: #selector(historyItemClicked(_:)),
-            memoryAction: #selector(saveToMemoryClicked(_:))
+            memoryAction: #selector(saveToMemoryClicked(_:)),
+            folderAction: #selector(historyFolderKeyPressed(_:))
         )
 
         if Defaults[.showClearHistoryItem] {
@@ -374,6 +409,28 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         guard let clipId = sender.representedObject as? String,
               let item = historyItems.first(where: { $0.id == clipId }) else { return }
         pasteClipItem(item)
+    }
+
+    /// Opens a history folder in response to its digit key.
+    ///
+    /// Firing a key equivalent dismisses the whole menu, so the folder is
+    /// re-presented on its own — landing where the menu already was, since the
+    /// pointer has not moved.
+    @objc private func historyFolderKeyPressed(_ sender: NSMenuItem) {
+        guard let folderItem = sender.representedObject as? NSMenuItem,
+              let submenu = folderItem.submenu else { return }
+
+        // A menu cannot be displayed while it is still attached elsewhere. The
+        // root menu is rebuilt from scratch on every open, so detaching costs
+        // nothing.
+        folderItem.submenu = nil
+
+        // Present after the dismissal completes — popping up inside a tracking
+        // session that is tearing down leaves the new menu unresponsive.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            submenu.popUp(positioning: nil, at: self.originClearOfCursor(for: submenu), in: nil)
+        }
     }
 
     @objc private func snippetClicked(_ sender: NSMenuItem) {
