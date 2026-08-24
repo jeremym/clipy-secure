@@ -14,7 +14,8 @@ struct ClipMenuBuilder {
         items historyItems: [ClipItem],
         target: AnyObject,
         pasteAction: Selector,
-        memoryAction: Selector
+        memoryAction: Selector,
+        folderAction: Selector
     ) {
         let maxHistorySize = Defaults[.maxHistorySize]
         let displayItems = Array(historyItems.prefix(maxHistorySize))
@@ -69,8 +70,19 @@ struct ClipMenuBuilder {
                     submenu.addItem(altItem)
                 }
 
+                MenuKeyRouter.attach(to: submenu)
                 folderItem.submenu = submenu
                 menu.addItem(folderItem)
+
+                // AppKit never matches a key equivalent against an item that owns
+                // a submenu, so the folder's digit lives on a hidden sibling —
+                // hidden items are still matched — whose action opens the folder.
+                let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
+                opener.target = target
+                opener.representedObject = folderItem
+                opener.isHidden = true
+                MenuKeyRouter.assign(key: folderTitle, to: opener)
+                menu.addItem(opener)
             }
         }
     }
@@ -215,6 +227,7 @@ struct ClipMenuBuilder {
                     submenu.addItem(altItem)
                 }
 
+                MenuKeyRouter.attach(to: submenu)
                 folderItem.submenu = submenu
                 menu.addItem(folderItem)
             }
@@ -309,6 +322,9 @@ struct ClipMenuBuilder {
         let memoryLabel = item.isMemory ? ", memorized" : ""
         menuItem.setAccessibilityLabel("Clipboard item: \(item.title)\(pinnedLabel)\(memoryLabel), type: \(typeLabel)")
 
+        // The prefix is a shortcut, not decoration — typing it pastes at once.
+        MenuKeyRouter.assign(key: shortcutPrefix, to: menuItem)
+
         return menuItem
     }
 
@@ -374,6 +390,10 @@ struct ClipMenuBuilder {
         if showTooltips, let str = item.stringValue {
             menuItem.toolTip = String(str.prefix(tooltipMaxLen))
         }
+
+        // Single-character labels only: inline memory is "m1", "m2"…, and a
+        // two-key sequence can't work here — the first key dismisses the menu.
+        MenuKeyRouter.assign(key: label, to: menuItem)
 
         return menuItem
     }
