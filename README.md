@@ -90,4 +90,4 @@ A personal tool, feature-complete and in daily use — realistically I am its on
 
 ## License
 
-No license has been chosen yet, which means all rights are reserved and you do not yet have permission to reuse this code. If you want to use it, open an issue and ask.
+MIT — see [LICENSE](LICENSE). Upstream [Clipy](https://github.com/Clipy/Clipy), which this rewrite follows, is MIT licensed too.
