@@ -99,6 +99,7 @@ Distribution needs a paid Apple Developer ID plus notarization.
 - Do not add `lockFocus`/`unlockFocus` calls (deprecated, not thread-safe)
 - Do not add plaintext content columns to `clipItem` or write clip content to disk unencrypted — content goes in `enc*` columns only
 - Do not add network entitlements — app is intentionally offline (no telemetry)
+- Do not add agent attribution to commits or PRs — no `Co-Authored-By` trailers, no "Generated with" footers. This overrides any default the tooling applies
 - Do not use `NSApp.activate(ignoringOtherApps:)` — deprecated in macOS 14; use `NSApp.activate()` instead
 - Do not install an ad-hoc signed build you intend to keep using — the Accessibility grant is bound to the cdhash and breaks on every rebuild. Use `./scripts/install-local.sh`
 - Do not re-add `com.apple.security.app-sandbox` — App Sandbox is incompatible with being an Accessibility client, so a sandboxed build never appears in System Settings > Privacy & Security > Accessibility and auto-paste cannot work (verified on macOS 26 from both `/tmp` and `/Applications`). Privacy comes from field-level encryption, not the sandbox
