@@ -4,6 +4,8 @@ A privacy-first clipboard manager for macOS. Everything you copy is stored encry
 
 A full rewrite of [Clipy](https://github.com/Clipy/Clipy) in Swift 6, rebuilt around the idea that a clipboard manager sees your passwords, tokens, and private messages — so it should be the last app on your Mac storing them in plain text.
 
+Mostly it exists because I wanted a Clipy with the features I actually use. It's here in case it's useful to anyone else.
+
 ![CI](https://github.com/jeremym/clipy-secure/actions/workflows/ci.yml/badge.svg)
 
 ## What it does
@@ -34,7 +36,7 @@ A full rewrite of [Clipy](https://github.com/Clipy/Clipy) in Swift 6, rebuilt ar
 
 ## Installing
 
-There are no downloadable releases. Distributing a macOS app that other people can open requires an Apple Developer ID and notarization, which this project does not have yet — a downloaded build would simply be blocked by Gatekeeper. **Build it from source instead.**
+ClipySecure is built from source. Three commands:
 
 ```bash
 git clone https://github.com/jeremym/clipy-secure.git
@@ -43,15 +45,19 @@ cd clipy-secure
 ./scripts/install-local.sh         # build, sign, install to /Applications, launch
 ```
 
-The signing script matters more than it looks. A plain `xcodebuild` produces an ad-hoc signature whose designated requirement is pinned to the binary's hash, and macOS binds the Accessibility grant to that requirement — so **every rebuild looks like a brand new app**, the old grant goes stale, and auto-paste silently breaks. Signing with a self-signed certificate makes the requirement identity-based and therefore stable across rebuilds.
+`create-signing-cert.sh` generates a self-signed code-signing certificate in your login keychain. It needs no Apple account and no developer membership — it is created and trusted entirely on your own machine.
 
-If a stale grant ever gets stuck:
+`install-local.sh` then quits any running copy, builds Release signed with that certificate, checks the signature actually took, installs to `/Applications`, and launches it. On first run macOS asks for Accessibility permission; grant it, or auto-paste cannot work.
+
+**Why the certificate step exists.** A plain `xcodebuild` signs ad-hoc, producing a designated requirement pinned to the binary's hash. macOS binds the Accessibility grant to that requirement, so **every rebuild looks like a brand new app**: the old grant goes stale, toggling it in System Settings does nothing, and auto-paste breaks. A certificate — even a self-signed one — makes the requirement identity-based, and the grant survives every rebuild.
+
+If a stale grant ever does get stuck, clear it once and re-grant:
 
 ```bash
 tccutil reset Accessibility com.clipysecure.app
 ```
 
-The certificate is local to your machine. Gatekeeper will still block the app on anyone else's.
+To rebuild after pulling changes, just run `install-local.sh` again.
 
 ## Default shortcuts
 
@@ -80,7 +86,7 @@ Dependencies are Swift Package Manager only: GRDB.swift, KeyboardShortcuts, Defa
 
 ## Status
 
-Feature-complete and in daily use by its author, but it has not been through external review, has no notarized build, and has no release process yet. Treat it as working software you compile yourself, not as a product.
+A personal tool, feature-complete and in daily use — realistically I am its only user. It has not had external review and there is no release process, so treat it as working software you compile yourself rather than as a product.
 
 ## License
 
