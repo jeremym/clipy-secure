@@ -1,0 +1,154 @@
+---
+const installGuideUrl = "https://github.com/jeremym/clipy-secure#installing";
+---
+
+<section class="install" id="install" aria-labelledby="install-heading">
+  <div class="install__copy">
+    <p class="eyebrow">Build from source</p>
+    <h2 id="install-heading">Ready in four commands.</h2>
+    <p>
+      Clipy Secure currently ships as source. You’ll need macOS 14 Sonoma or later and Xcode 16 or later.
+    </p>
+    <p class="install__permission">
+      On first launch, grant Accessibility permission so Clipy Secure can paste into other apps.
+    </p>
+    <a href={installGuideUrl}>Signing details and troubleshooting <span aria-hidden="true">→</span></a>
+  </div>
+
+  <section class="install__terminal" aria-label="Terminal commands to install Clipy Secure from source">
+    <div class="terminal__bar" aria-hidden="true">
+      <span></span><span></span><span></span>
+      <strong>Terminal</strong>
+    </div>
+    <pre><code><span class="prompt" aria-hidden="true">$ </span>git clone https://github.com/jeremym/clipy-secure.git
+<span class="prompt" aria-hidden="true">$ </span>cd clipy-secure
+<span class="prompt" aria-hidden="true">$ </span>./scripts/create-signing-cert.sh <span class="comment"># once per machine</span>
+<span class="prompt" aria-hidden="true">$ </span>./scripts/install-local.sh</code></pre>
+  </section>
+</section>
+
+<style>
+  .install {
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) minmax(28rem, 1.22fr);
+    gap: clamp(3rem, 8vw, 7rem);
+    width: min(100% - 2rem, 74rem);
+    margin-inline: auto;
+    padding-block: clamp(5rem, 11vw, 9rem);
+  }
+
+  .eyebrow {
+    margin: 0 0 1rem;
+    color: var(--color-accent, #6ee7c5);
+    font-size: 0.76rem;
+    font-weight: 720;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0;
+    color: var(--color-text, #f5f7f6);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+  }
+
+  .install__copy > p:not(.eyebrow) {
+    max-width: 36rem;
+    margin: 1.25rem 0 0;
+    color: var(--color-text-muted, #b5c0bd);
+    line-height: 1.62;
+  }
+
+  .install__permission {
+    border-left: 2px solid var(--color-accent, #6ee7c5);
+    padding-left: 1rem;
+    font-size: 0.88rem;
+  }
+
+  .install__copy a {
+    display: inline-flex;
+    gap: 0.45rem;
+    margin-top: 1.4rem;
+    color: var(--color-accent, #6ee7c5);
+    font-size: 0.9rem;
+    font-weight: 670;
+    text-underline-offset: 0.22em;
+  }
+
+  .install__terminal {
+    align-self: center;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border, #2c3935);
+    border-radius: 1rem;
+    background: #090d0c;
+    box-shadow: 0 1.75rem 4rem rgba(0, 0, 0, 0.3);
+  }
+
+  .terminal__bar {
+    position: relative;
+    display: flex;
+    height: 2.5rem;
+    align-items: center;
+    gap: 0.42rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-inline: 0.9rem;
+    background: #151b19;
+  }
+
+  .terminal__bar span {
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    background: #4d5754;
+  }
+
+  .terminal__bar strong {
+    position: absolute;
+    left: 50%;
+    color: #89938f;
+    font-size: 0.7rem;
+    font-weight: 600;
+    transform: translateX(-50%);
+  }
+
+  pre {
+    margin: 0;
+    overflow-x: auto;
+    padding: clamp(1.2rem, 3vw, 2rem);
+    color: #dce5e1;
+    font-size: clamp(0.67rem, 1.3vw, 0.88rem);
+    line-height: 1.9;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  .prompt {
+    color: var(--color-accent, #6ee7c5);
+    user-select: none;
+  }
+
+  .comment {
+    color: #74807c;
+  }
+
+  @media (max-width: 860px) {
+    .install {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 500px) {
+    .install {
+      width: min(100% - 1.25rem, 74rem);
+    }
+
+    .install__terminal {
+      border-radius: 0.8rem;
+    }
+  }
+</style>

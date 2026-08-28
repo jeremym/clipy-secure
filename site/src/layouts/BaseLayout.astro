@@ -1,0 +1,84 @@
+---
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: URL | string;
+  socialImage?: string;
+  noindex?: boolean;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[] | false;
+}
+
+const {
+  title = "Clipy Secure — Private clipboard history for macOS",
+  description = "A privacy-first clipboard manager for macOS with encrypted history, in-memory search, and no network features.",
+  canonical,
+  socialImage = "social-card.png",
+  noindex = false,
+  structuredData,
+} = Astro.props;
+
+const canonicalUrl = canonical
+  ? new URL(canonical, Astro.site)
+  : new URL(Astro.url.pathname, Astro.site);
+const socialImageUrl = socialImage
+  ? new URL(socialImage.replace(/^\//, ""), new URL(import.meta.env.BASE_URL, Astro.site))
+  : undefined;
+const defaultSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Clipy Secure",
+  applicationCategory: "UtilitiesApplication",
+  operatingSystem: "macOS 14 or later",
+  description,
+  url: canonicalUrl.href,
+  license: "https://opensource.org/license/mit",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+const schema = structuredData === false ? undefined : (structuredData ?? defaultSchema);
+const schemaJson = schema ? JSON.stringify(schema).replaceAll("<", "\\u003c") : undefined;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0d0e" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Clipy Secure" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    {socialImageUrl && <meta property="og:image" content={socialImageUrl} />}
+    <meta name="twitter:card" content={socialImageUrl ? "summary_large_image" : "summary"} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {socialImageUrl && <meta name="twitter:image" content={socialImageUrl} />}
+    <title>{title}</title>
+    {schemaJson && <script is:inline type="application/ld+json" set:html={schemaJson} />}
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="site-shell">
+      <Header />
+      <main id="main-content" tabindex="-1">
+        <slot />
+      </main>
+      <Footer />
+    </div>
+  </body>
+</html>

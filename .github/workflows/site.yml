@@ -1,0 +1,99 @@
+name: Site
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+      - "README.md"
+      - "SECURITY.md"
+      - "CLAUDE.md"
+      - "ClipySecure/**"
+      - ".github/ISSUE_TEMPLATE/**"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+      - "README.md"
+      - "SECURITY.md"
+      - "CLAUDE.md"
+      - "ClipySecure/**"
+      - ".github/ISSUE_TEMPLATE/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Validate and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Astro project
+        run: npm run check
+
+      - name: Validate public content
+        run: npm run validate
+
+      - name: Validate introduced commit messages
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          VALIDATION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          VALIDATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/validate-commits.mjs "$VALIDATION_BASE_SHA" "$VALIDATION_HEAD_SHA"
+
+      - name: Build site
+        run: npm run build
+
+      - name: Configure GitHub Pages
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+        uses: actions/configure-pages@v6
+
+      - name: Upload GitHub Pages artifact
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
