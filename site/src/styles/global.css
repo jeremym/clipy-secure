@@ -158,29 +158,19 @@ pre {
   margin-top: clamp(4.5rem, 12vw, 7.75rem);
 }
 
-.screenshot-placeholder {
-  display: grid;
-  aspect-ratio: 8 / 5;
-  align-content: center;
-  justify-items: center;
+.screenshot-document--primary {
+  width: min(100%, 30.8125rem);
+}
+
+.screenshot-document--secondary {
+  width: min(100%, 41.75rem);
+}
+
+.screenshot-image {
+  display: block;
+  width: 100%;
+  height: auto;
   border: 1px solid var(--color-rule);
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-small);
-  line-height: 1.5;
-  text-align: center;
-}
-
-.screenshot-placeholder small {
-  font: inherit;
-}
-
-.screenshot-placeholder small::before {
-  content: "— ";
-}
-
-.screenshot-placeholder small::after {
-  content: " —";
 }
 
 figcaption {
@@ -272,10 +262,6 @@ figcaption {
   font-size: var(--text-small);
 }
 
-.screenshot-document--secondary {
-  margin-top: clamp(4.5rem, 12vw, 7rem);
-}
-
 .build-section pre {
   overflow-x: auto;
   border-block: 1px solid var(--color-rule);
@@ -303,11 +289,6 @@ figcaption {
   .screenshot-document,
   .screenshot-document--secondary {
     margin-top: 4.25rem;
-  }
-
-  .screenshot-placeholder {
-    min-height: 11rem;
-    aspect-ratio: auto;
   }
 
   .workflow {

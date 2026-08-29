@@ -24,24 +24,24 @@ npm run build
 disallowed tool attribution. The GitHub workflow separately applies the same
 attribution policy to commits introduced by a pull request or direct push.
 
-## Screenshot handoff
+## Screenshots
 
-The page uses quiet typographic placeholders until final screenshots are available.
-Provide clean PNG source files with these compositions:
+Clean application captures live under `src/images/screenshots/`. The page uses
+the clipboard menu and Privacy preferences captures as its two document figures;
+the other preference-tab captures are retained for future swaps.
 
-| Screenshot | Source size | Content |
-| --- | --- | --- |
-| Clipboard menu | 1600 × 1000 | Safe fictional clipboard history |
-| Search or preferences | 1600 × 1000 | Search, shortcuts, privacy, or excluded-app preferences |
+| Screenshot | Source size |
+| --- | --- |
+| Clipboard menu | 493 × 484 |
+| General preferences | 690 × 711 |
+| Menu preferences | 656 × 701 |
+| Types preferences | 655 × 694 |
+| Shortcuts preferences | 653 × 703 |
+| Privacy preferences | 668 × 706 |
 
-Use Retina captures with consistent macOS appearance. Do not include real URLs,
-names, clipboard contents, notifications, desktop details, or sensitive image
-metadata.
-
-Once the captures are ready, place their source files under `src/images/` and
-replace the matching placeholders in `src/pages/index.astro` with Astro image
-components. Keep the one-pixel document border and write descriptive alternative
-text for each image.
+Keep screenshots free of real URLs, names, sensitive clipboard contents,
+notifications, desktop details, and sensitive image metadata. Display captures
+with a one-pixel document border and descriptive alternative text.
 
 ## Deployment
 

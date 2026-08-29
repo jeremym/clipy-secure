@@ -1,5 +1,8 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import clipboardMenuScreenshot from "../images/screenshots/clipboard-menu.png";
+import privacyPreferencesScreenshot from "../images/screenshots/preferences-privacy.png";
 
 const repositoryUrl = "https://github.com/jeremym/clipy-secure";
 const privacyUrl = `${repositoryUrl}#how-the-privacy-works`;
@@ -41,16 +44,14 @@ const privacyDetails = [
     </nav>
   </section>
 
-  <figure class="screenshot-document">
-    <div
-      class="screenshot-placeholder"
-      role="img"
-      aria-label="Reserved position for a screenshot of the Clipy Secure clipboard menu"
-    >
-      <span>clipboard menu screenshot</span>
-      <small>1600 × 1000</small>
-    </div>
-    <figcaption>figure 01 / clipboard menu</figcaption>
+  <figure class="screenshot-document screenshot-document--primary">
+    <Image
+      class="screenshot-image"
+      src={clipboardMenuScreenshot}
+      alt="Clipy Secure clipboard menu showing recent text clips, snippet folders, a remembered clip, and menu commands"
+      loading="lazy"
+    />
+    <figcaption>figure 01 / clipboard menu / <span aria-hidden="true">⇧⌘V</span></figcaption>
   </figure>
 
   <div class="workflow">
@@ -94,15 +95,13 @@ const privacyDetails = [
   </section>
 
   <figure class="screenshot-document screenshot-document--secondary">
-    <div
-      class="screenshot-placeholder"
-      role="img"
-      aria-label="Reserved position for a screenshot of Clipy Secure search or preferences"
-    >
-      <span>search or preferences screenshot</span>
-      <small>1600 × 1000</small>
-    </div>
-    <figcaption>figure 02 / search or preferences</figcaption>
+    <Image
+      class="screenshot-image"
+      src={privacyPreferencesScreenshot}
+      alt="Clipy Secure Privacy preferences showing history expiration, concealed-content handling, duplicate handling, and the clear-history control"
+      loading="lazy"
+    />
+    <figcaption>figure 02 / preferences / privacy</figcaption>
   </figure>
 
   <section class="document-section build-section" id="build-it" aria-labelledby="build-title">
