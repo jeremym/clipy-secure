@@ -26,22 +26,22 @@ attribution policy to commits introduced by a pull request or direct push.
 
 ## Screenshot handoff
 
-The initial page uses CSS mockups until final screenshots are available.
+The page uses quiet typographic placeholders until final screenshots are available.
 Provide clean PNG source files with these compositions:
 
 | Screenshot | Source size | Content |
 | --- | --- | --- |
 | Clipboard menu | 1600 × 1000 | Safe fictional clipboard history |
-| Search workflow | 1600 × 1000 | Search results using fictional content |
-| Privacy controls | 1440 × 1080 | Privacy or excluded-app preferences |
+| Search or preferences | 1600 × 1000 | Search, shortcuts, privacy, or excluded-app preferences |
 
-Use Retina captures with consistent macOS appearance and generous padding
-around the app window. Do not include real URLs, names, clipboard contents,
-notifications, desktop details, or sensitive image metadata.
+Use Retina captures with consistent macOS appearance. Do not include real URLs,
+names, clipboard contents, notifications, desktop details, or sensitive image
+metadata.
 
 Once the captures are ready, place their source files under `src/images/` and
-replace the matching mockups in `Hero.astro` and `ScreenshotShowcase.astro` with
-Astro image components.
+replace the matching placeholders in `src/pages/index.astro` with Astro image
+components. Keep the one-pixel document border and write descriptive alternative
+text for each image.
 
 ## Deployment
 

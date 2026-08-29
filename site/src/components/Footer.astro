@@ -8,87 +8,25 @@ const {
   githubUrl = "https://github.com/jeremym/clipy-secure",
   upstreamUrl = "https://github.com/Clipy/Clipy",
 } = Astro.props;
-const year = new Date().getUTCFullYear();
 ---
 
 <footer class="site-footer">
-  <div class="container footer-inner">
-    <div>
-      <p class="footer-name">Clipy Secure</p>
-      <p class="footer-note">An independent, security-focused rewrite inspired by <a href={upstreamUrl}>Clipy</a>.</p>
-    </div>
-    <nav aria-label="Footer navigation">
-      <ul class="footer-links">
-        <li><a href={githubUrl}>GitHub</a></li>
-        <li><a href={`${githubUrl}/blob/main/LICENSE`}>MIT License</a></li>
-      </ul>
-    </nav>
-  </div>
-  <div class="container footer-legal">
-    <span>© {year} Clipy Secure contributors.</span>
-    <span>No app telemetry. Local by design.</span>
-  </div>
+  <span><a href={`${githubUrl}/blob/main/LICENSE`}>MIT licensed</a></span>
+  <span>independent rewrite inspired by <a href={upstreamUrl}>Clipy <span aria-hidden="true">↗</span></a></span>
+  <span><a href={githubUrl}>github <span aria-hidden="true">↗</span></a></span>
 </footer>
 
 <style>
   .site-footer {
-    margin-top: var(--space-10);
-    border-top: 1px solid var(--color-line);
-    color: var(--color-text-muted);
-  }
-
-  .footer-inner,
-  .footer-legal {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-6);
-  }
-
-  .footer-inner {
-    padding-block: var(--space-8) var(--space-6);
-  }
-
-  .footer-name {
-    margin: 0 0 var(--space-2);
-    color: var(--color-text);
-    font-weight: 650;
-  }
-
-  .footer-note {
-    max-width: 34rem;
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
-  .footer-links {
-    display: flex;
-    gap: var(--space-5);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    white-space: nowrap;
-  }
-
-  .footer-inner a {
-    color: var(--color-text-soft);
-  }
-
-  .footer-inner a:hover {
-    color: var(--color-accent);
-  }
-
-  .footer-legal {
-    padding-block: var(--space-5);
-    border-top: 1px solid color-mix(in srgb, var(--color-line) 62%, transparent);
-    font-size: var(--text-xs);
-  }
-
-  @media (max-width: 40rem) {
-    .footer-inner,
-    .footer-legal {
-      flex-direction: column;
-      gap: var(--space-4);
-    }
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin-top: clamp(5rem, 13vw, 8rem);
+    border-top: 1px solid var(--color-rule);
+    padding-block: 0.9rem 2.5rem;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-footnote);
+    line-height: 1.55;
   }
 </style>

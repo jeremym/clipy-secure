@@ -13,8 +13,8 @@ interface Props {
 }
 
 const {
-  title = "Clipy Secure — Private clipboard history for macOS",
-  description = "A privacy-first clipboard manager for macOS with encrypted history, in-memory search, and no network features.",
+  title = "Clipy Secure — Encrypted clipboard history for macOS",
+  description = "Encrypted clipboard history for macOS with in-memory search and no telemetry, sync, update check, or networking feature.",
   canonical,
   socialImage = "social-card.png",
   noindex = false,
@@ -51,8 +51,8 @@ const schemaJson = schema ? JSON.stringify(schema).replaceAll("<", "\\u003c") : 
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0a0d0e" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#f3f0e7" />
+    <meta name="color-scheme" content="light" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonicalUrl} />

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { lstatSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -103,6 +103,7 @@ function listCandidateFiles() {
   return output
     .split("\0")
     .filter(Boolean)
+    .filter((path) => existsSync(resolve(repositoryRoot, path)))
     .filter((path) => !ignoredFiles.has(path))
     .filter((path) => !path.split("/").some((segment) => ignoredPathSegments.has(segment)))
     .filter((path) => {
