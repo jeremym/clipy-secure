@@ -1,37 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <defs>
-    <radialGradient id="cyan-glow" cx="0" cy="0" r="1" gradientTransform="translate(118 64) rotate(43) scale(600 520)" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#35d0bc" stop-opacity=".24"/>
-      <stop offset="1" stop-color="#35d0bc" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="lime-glow" cx="0" cy="0" r="1" gradientTransform="translate(1090 58) rotate(133) scale(500 440)" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#b9db69" stop-opacity=".16"/>
-      <stop offset="1" stop-color="#b9db69" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="mark" x1="71" y1="62" x2="187" y2="202" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#35d0bc"/>
-      <stop offset="1" stop-color="#b9db69"/>
-    </linearGradient>
-    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
-      <path d="M64 0H0V64" fill="none" stroke="#fff" stroke-opacity=".025"/>
-    </pattern>
-  </defs>
-  <rect width="1200" height="630" rx="36" fill="#0a0d0e"/>
-  <rect width="1200" height="630" rx="36" fill="url(#cyan-glow)"/>
-  <rect width="1200" height="630" rx="36" fill="url(#lime-glow)"/>
-  <rect width="1200" height="630" rx="36" fill="url(#grid)"/>
-  <rect x="64" y="58" width="132" height="132" rx="32" fill="#111617" stroke="#283130" stroke-width="2"/>
-  <path d="M130 78 171 93v31.5c0 26.1-15.5 46.8-41 57.6-25.5-10.8-41-31.5-41-57.6V93l41-15Z" fill="url(#mark)" fill-opacity=".14" stroke="url(#mark)" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M114.4 129v-12.3a15.6 15.6 0 0 1 31.2 0v24.7a21.6 21.6 0 0 1-43.2 0v-26.5" fill="none" stroke="#f4f7f5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="64" y="290" fill="#35d0bc" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3">PRIVATE BY DESIGN</text>
-  <text x="64" y="382" fill="#f4f7f5" font-family="Helvetica, Arial, sans-serif" font-size="76" font-weight="700" letter-spacing="-3">Clipy Secure</text>
-  <text x="64" y="452" fill="#cbd4d0" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="400">Encrypted clipboard history for macOS.</text>
-  <g transform="translate(64 516)">
-    <circle cx="7" cy="7" r="7" fill="#35d0bc"/>
-    <text x="28" y="16" fill="#8e9b97" font-family="Helvetica, Arial, sans-serif" font-size="24">Local history</text>
-    <circle cx="222" cy="7" r="7" fill="#35d0bc"/>
-    <text x="243" y="16" fill="#8e9b97" font-family="Helvetica, Arial, sans-serif" font-size="24">In-memory search</text>
-    <circle cx="494" cy="7" r="7" fill="#35d0bc"/>
-    <text x="515" y="16" fill="#8e9b97" font-family="Helvetica, Arial, sans-serif" font-size="24">Open source</text>
+  <rect width="1200" height="630" fill="#f3f0e7"/>
+  <g fill="#151515" font-family="Menlo, Monaco, monospace">
+    <text x="80" y="83" font-size="25">clipy secure</text>
+    <text x="970" y="83" font-size="25" text-decoration="underline" text-decoration-color="#087f6d">github ↗</text>
   </g>
+  <path d="M80 112H1120" stroke="#c9c5ba" stroke-width="2"/>
+  <text x="80" y="226" fill="#151515" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="600" letter-spacing="-2">Clipy Secure</text>
+  <text x="80" y="291" fill="#151515" font-family="Arial, Helvetica, sans-serif" font-size="34">Encrypted clipboard history for macOS.</text>
+  <g font-family="Menlo, Monaco, monospace" font-size="23">
+    <text x="80" y="397" fill="#62605a">database</text>
+    <text x="290" y="397" fill="#151515">AES-GCM encrypted</text>
+    <text x="80" y="440" fill="#62605a">search</text>
+    <text x="290" y="440" fill="#151515">memory only</text>
+    <text x="80" y="483" fill="#62605a">networking</text>
+    <text x="290" y="483" fill="#151515">none</text>
+  </g>
+  <path d="M80 548H1120" stroke="#c9c5ba" stroke-width="2"/>
+  <text x="80" y="589" fill="#087f6d" font-family="Menlo, Monaco, monospace" font-size="21">⇧⌘V  →  press a  →  pasted</text>
 </svg>

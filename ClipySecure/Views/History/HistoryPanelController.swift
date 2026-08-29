@@ -43,12 +43,12 @@ final class HistoryPanelController {
         hostingController = controller
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 600),
             styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .utilityWindow],
             backing: .buffered,
             defer: true
         )
-        panel.title = String(localized: "Clipboard History")
+        panel.title = String(localized: "History Search")
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false

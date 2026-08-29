@@ -1,21 +1,122 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import FeatureGrid from "../components/FeatureGrid.astro";
-import Hero from "../components/Hero.astro";
-import InstallSection from "../components/InstallSection.astro";
-import PrivacySummary from "../components/PrivacySummary.astro";
-import ScreenshotShowcase from "../components/ScreenshotShowcase.astro";
-import TrustStrip from "../components/TrustStrip.astro";
+import clipboardMenuScreenshot from "../images/screenshots/clipboard-menu.png";
+import privacyPreferencesScreenshot from "../images/screenshots/preferences-privacy.png";
+
+const repositoryUrl = "https://github.com/jeremym/clipy-secure";
+const privacyUrl = `${repositoryUrl}#how-the-privacy-works`;
+const installUrl = `${repositoryUrl}#installing`;
+
+const features = [
+  ["history", "text, images, files, links, and rich documents"],
+  ["paste", "open the menu and press a letter or number"],
+  ["search", "full-text index rebuilt in memory at launch"],
+  ["memory", "keep selected clips indefinitely"],
+  ["snippets", "save reusable text in folders"],
+  ["exclusions", "ignore selected apps and concealed content"],
+];
+
+const privacyDetails = [
+  ["database", "AES-GCM encrypted before reaching SQLite"],
+  ["key", "stored in the macOS Keychain"],
+  ["search index", "memory only; no plaintext index on disk"],
+  ["networking", "no telemetry, sync, update check, or networking feature"],
+  ["duplicates", "detected with keyed content hashes"],
+  ["snippets", "plaintext by design; do not store secrets in them"],
+];
 ---
 
 <BaseLayout
-  title="Clipy Secure — Private clipboard history for macOS"
-  description="A privacy-first clipboard manager for macOS with encrypted history, in-memory search, and no network features."
+  title="Clipy Secure — Encrypted clipboard history for macOS"
+  description="Encrypted clipboard history for macOS with in-memory search and no telemetry, sync, update check, or networking feature."
 >
-  <Hero />
-  <TrustStrip />
-  <FeatureGrid />
-  <PrivacySummary />
-  <ScreenshotShowcase />
-  <InstallSection />
+  <section class="intro" aria-labelledby="intro-title">
+    <h1 id="intro-title">Clipy Secure</h1>
+    <p class="tagline">Encrypted clipboard history for macOS.</p>
+    <p class="introduction">
+      Clipy Secure keeps copied text, images, files, and links close at hand. Clipboard history is encrypted locally,
+      search stays in memory, and the app has no telemetry, sync, or update check.
+    </p>
+    <nav class="text-actions" aria-label="Get Clipy Secure">
+      <a href="#build-it">build from source</a>
+      <a href={repositoryUrl}>view source on github <span aria-hidden="true">↗</span></a>
+    </nav>
+  </section>
+
+  <figure class="screenshot-document screenshot-document--primary">
+    <Image
+      class="screenshot-image"
+      src={clipboardMenuScreenshot}
+      alt="Clipy Secure clipboard menu showing recent text clips, snippet folders, a remembered clip, and menu commands"
+      loading="lazy"
+    />
+    <figcaption>figure 01 / clipboard menu / <span aria-hidden="true">⇧⌘V</span></figcaption>
+  </figure>
+
+  <div class="workflow">
+    <span class="sr-only">Press Shift-Command-V, then press A. The selected clip is pasted.</span>
+    <span aria-hidden="true"><kbd>⇧⌘V</kbd> <i>→</i> press <kbd>a</kbd> <i>→</i> pasted</span>
+  </div>
+
+  <section class="document-section" id="what-it-does" aria-labelledby="features-title">
+    <div class="section-heading">
+      <h2 id="features-title">what it does</h2>
+      <hr />
+    </div>
+    <dl class="spec-list">
+      {features.map(([label, description]) => (
+        <div>
+          <dt>{label}</dt>
+          <dd>{description}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+
+  <section class="document-section" id="privacy" aria-labelledby="privacy-title">
+    <div class="section-heading">
+      <h2 id="privacy-title">privacy</h2>
+      <hr />
+    </div>
+    <dl class="spec-list">
+      {privacyDetails.map(([label, description]) => (
+        <div>
+          <dt>{label}</dt>
+          <dd>{description}</dd>
+        </div>
+      ))}
+    </dl>
+    <p class="caveat">
+      Clipy Secure has not received an independent security audit. Local encryption cannot protect the live clipboard
+      on an already-compromised, unlocked Mac.
+    </p>
+    <p class="section-link"><a href={privacyUrl}>technical details <span aria-hidden="true">↗</span></a></p>
+  </section>
+
+  <figure class="screenshot-document screenshot-document--secondary">
+    <Image
+      class="screenshot-image"
+      src={privacyPreferencesScreenshot}
+      alt="Clipy Secure Privacy preferences showing history expiration, concealed-content handling, duplicate handling, and the clear-history control"
+      loading="lazy"
+    />
+    <figcaption>figure 02 / preferences / privacy</figcaption>
+  </figure>
+
+  <section class="document-section build-section" id="build-it" aria-labelledby="build-title">
+    <div class="section-heading">
+      <h2 id="build-title">build it</h2>
+      <hr />
+    </div>
+    <pre><code>$ git clone https://github.com/jeremym/clipy-secure.git
+$ cd clipy-secure
+$ ./scripts/create-signing-cert.sh
+$ ./scripts/install-local.sh</code></pre>
+    <div class="footnotes">
+      <p>requires macOS 14+ and Xcode 16+</p>
+      <p>Accessibility permission is required for automatic paste.</p>
+    </div>
+    <p class="section-link"><a href={installUrl}>signing details and troubleshooting <span aria-hidden="true">↗</span></a></p>
+  </section>
 </BaseLayout>

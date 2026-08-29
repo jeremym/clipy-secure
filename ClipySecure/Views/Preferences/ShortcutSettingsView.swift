@@ -6,8 +6,7 @@ struct ShortcutSettingsView: View {
         Form {
             Section("Global Keyboard Shortcuts") {
                 shortcutRow("Main Menu", name: .toggleMainMenu)
-                shortcutRow("History Menu", name: .toggleHistoryMenu)
-                shortcutRow("Snippets Menu", name: .toggleSnippetMenu)
+                shortcutRow("Clipboard History Search", name: .toggleHistoryMenu)
                 shortcutRow("Clear History", name: .clearHistory)
             }
         }
