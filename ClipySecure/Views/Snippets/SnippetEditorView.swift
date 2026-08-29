@@ -184,45 +184,49 @@ private struct SnippetDetailView: View {
     @State private var content: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            TextField("Snippet Title", text: $title)
-                .textFieldStyle(.roundedBorder)
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-                .onChange(of: title) { _, newValue in
-                    onTitleChange(newValue)
-                }
-
-            ZStack(alignment: .topLeading) {
-                if content.isEmpty {
-                    Text("Enter snippet content\u{2026}")
-                        .foregroundStyle(.tertiary)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(.top, 8)
-                        .padding(.leading, 12)
-                }
-                TextEditor(text: $content)
-                    .font(.system(.body, design: .monospaced))
-                    .scrollContentBackground(.hidden)
+        Form {
+            Section("Snippet") {
+                TextField("Snippet Name", text: $title)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.title3)
+                    .onChange(of: title) { _, newValue in
+                        onTitleChange(newValue)
+                    }
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: .textBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
-            )
-            .onChange(of: content) { _, newValue in
-                onContentChange(newValue)
+
+            Section("Content") {
+                ZStack(alignment: .topLeading) {
+                    if content.isEmpty {
+                        Text("Enter snippet content\u{2026}")
+                            .foregroundStyle(.tertiary)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(.top, 8)
+                            .padding(.leading, 9)
+                    }
+
+                    TextEditor(text: $content)
+                        .font(.system(.body, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(3)
+                }
+                .frame(minHeight: 300)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+                .onChange(of: content) { _, newValue in
+                    onContentChange(newValue)
+                }
+            }
+
+            Section("Info") {
+                LabeledContent("Created", value: snippet.createdAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Modified", value: snippet.updatedAt.formatted(date: .abbreviated, time: .shortened))
             }
         }
+        .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             title = snippet.title

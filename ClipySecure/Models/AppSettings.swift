@@ -4,7 +4,7 @@ import Foundation
 extension Defaults.Keys {
     static let maxHistorySize = Key<Int>("maxHistorySize", default: 32)
     static let menuItemTitleMaxLength = Key<Int>("menuItemTitleMaxLength", default: 40)
-    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 2)
+    static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 5)
     static let numberOfItemsInFolder = Key<Int>("numberOfItemsInFolder", default: 10)
     static let showNumbersInMenu = Key<Bool>("showNumbersInMenu", default: true)
     static let showMenuAtMousePointer = Key<Bool>("showMenuAtMousePointer", default: true)

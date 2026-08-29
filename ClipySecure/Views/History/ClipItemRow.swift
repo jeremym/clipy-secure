@@ -27,7 +27,7 @@ struct ClipItemRow: View {
                     Text(item.title)
                         .lineLimit(1)
                 }
-                Text(item.updatedAt, style: .relative)
+                Text(item.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

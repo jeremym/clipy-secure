@@ -41,6 +41,11 @@ Carthage/Build/
 .idea/
 .vscode/
 
+# Website
+site/node_modules/
+site/dist/
+site/.astro/
+
 # Conductor
 .context/
 
