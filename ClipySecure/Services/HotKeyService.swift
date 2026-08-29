@@ -5,7 +5,6 @@ import OSLog
 extension KeyboardShortcuts.Name {
     static let toggleMainMenu = Self("toggleMainMenu", default: .init(.v, modifiers: [.command, .shift]))
     static let toggleHistoryMenu = Self("toggleHistoryMenu", default: .init(.v, modifiers: [.command, .control]))
-    static let toggleSnippetMenu = Self("toggleSnippetMenu", default: .init(.b, modifiers: [.command, .shift]))
     static let clearHistory = Self("clearHistory")
 }
 
@@ -38,10 +37,6 @@ final class HotKeyService {
             } else {
                 self?.statusBarController.popUpHistoryMenu()
             }
-        }
-
-        KeyboardShortcuts.onKeyUp(for: .toggleSnippetMenu) { [weak self] in
-            self?.statusBarController.popUpSnippetMenu()
         }
 
         KeyboardShortcuts.onKeyUp(for: .clearHistory) { [weak self] in

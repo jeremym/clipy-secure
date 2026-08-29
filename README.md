@@ -64,10 +64,9 @@ To rebuild after pulling changes, just run `install-local.sh` again.
 | Shortcut | Action |
 | --- | --- |
 | ⇧⌘V | Clip menu at the pointer — history, snippets, and memory |
-| ⌃⌘V | History panel with search |
-| ⇧⌘B | Snippets menu |
+| ⌃⌘V | Clipboard history search |
 
-All three are rebindable in Preferences.
+Both are rebindable in Preferences.
 
 ## Building and testing
 
