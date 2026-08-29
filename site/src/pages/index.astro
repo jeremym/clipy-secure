@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FeatureGrid from "../components/FeatureGrid.astro";
+import Hero from "../components/Hero.astro";
+import InstallSection from "../components/InstallSection.astro";
+import PrivacySummary from "../components/PrivacySummary.astro";
+import ScreenshotShowcase from "../components/ScreenshotShowcase.astro";
+import TrustStrip from "../components/TrustStrip.astro";
+---
+
+<BaseLayout
+  title="Clipy Secure — Private clipboard history for macOS"
+  description="A privacy-first clipboard manager for macOS with encrypted history, in-memory search, and no network features."
+>
+  <Hero />
+  <TrustStrip />
+  <FeatureGrid />
+  <PrivacySummary />
+  <ScreenshotShowcase />
+  <InstallSection />
+</BaseLayout>

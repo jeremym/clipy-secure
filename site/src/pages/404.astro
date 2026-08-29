@@ -1,0 +1,34 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const home = import.meta.env.BASE_URL;
+---
+
+<BaseLayout
+  title="Page not found — Clipy Secure"
+  description="The page you were looking for could not be found."
+  canonical={`${home}404.html`}
+  noindex
+  structuredData={false}
+>
+  <section class="not-found container" aria-labelledby="not-found-title">
+    <p class="eyebrow">404</p>
+    <h1 id="not-found-title">Nothing in this history.</h1>
+    <p class="lede">The page may have moved, or the address may be incomplete.</p>
+    <a class="button button-primary" href={home}>Return home</a>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: grid;
+    min-height: 68vh;
+    align-content: center;
+    justify-items: start;
+    padding-block: var(--space-9);
+  }
+
+  .lede {
+    margin-block: var(--space-5) var(--space-6);
+  }
+</style>

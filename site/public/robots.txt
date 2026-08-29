@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jeremym.github.io/clipy-secure/sitemap-index.xml

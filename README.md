@@ -23,7 +23,7 @@ Mostly it exists because I wanted a Clipy with the features I actually use. It's
 - **Encrypted at rest.** Clip content — titles, text, RTF, PDF, images, filenames, URLs — is encrypted field-by-field with AES-GCM via CryptoKit before it touches SQLite. The key lives in your Keychain. Plaintext exists only in memory, and the model type cannot persist it even by accident.
 - **Keyed content hashes.** Duplicate detection uses HMAC rather than a plain hash, so the database cannot be scanned for known values.
 - **The search index never hits disk.** The FTS5 index is built in an attached in-memory database and rebuilt at launch from decrypted rows, so searchable plaintext has nowhere to leak to.
-- **No network, by construction.** The app requests no network entitlement. There is no telemetry, no sync, no update check.
+- **No network features.** The app contains no telemetry, sync, update check, or other networking feature.
 - **Not sandboxed, deliberately.** Auto-paste posts a synthetic ⌘V through CGEvent, which is exactly the cross-application control App Sandbox exists to prevent — a sandboxed build never appears under Accessibility at all. Privacy here comes from encryption, not from the sandbox. This is also why upstream Clipy is not on the Mac App Store.
 
 **One honest exception:** snippets are stored in plain text. They are content you wrote and curate yourself, and they export as plaintext XML by design. Don't keep secrets in them.
