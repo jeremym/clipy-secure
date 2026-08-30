@@ -4,6 +4,8 @@
 
 A privacy-first clipboard manager for macOS. Everything you copy is stored encrypted on disk, nothing ever leaves your machine, and the searchable index lives only in memory.
 
+**Website:** [jeremym.github.io/clipy-secure](https://jeremym.github.io/clipy-secure/)
+
 A full rewrite of [Clipy](https://github.com/Clipy/Clipy) in Swift 6, rebuilt around the idea that a clipboard manager sees your passwords, tokens, and private messages — so it should be the last app on your Mac storing them in plain text.
 
 Mostly it exists because I wanted a Clipy with the features I actually use. It's here in case it's useful to anyone else.
