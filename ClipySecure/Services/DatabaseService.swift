@@ -499,7 +499,11 @@ final class DatabaseService: Sendable {
     func fetchFolders() throws -> [SnippetFolder] {
         try dbQueue.read { db in
             try SnippetFolder
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
         }
     }
@@ -533,7 +537,11 @@ final class DatabaseService: Sendable {
         try dbQueue.read { db in
             try Snippet
                 .filter(Column("folderId") == folderId)
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
         }
     }
@@ -542,7 +550,11 @@ final class DatabaseService: Sendable {
         try dbQueue.read { db in
             try Snippet
                 .filter(Column("folderId") == nil)
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
         }
     }
@@ -550,6 +562,24 @@ final class DatabaseService: Sendable {
     func saveSnippet(_ snippet: Snippet) throws {
         try dbQueue.write { db in
             try snippet.save(db)
+        }
+    }
+
+    func updateSnippetTitle(id: String, title: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE snippet SET title = ?, updatedAt = ? WHERE id = ?",
+                arguments: [title, Date(), id]
+            )
+        }
+    }
+
+    func updateSnippetContent(id: String, content: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE snippet SET content = ?, updatedAt = ? WHERE id = ?",
+                arguments: [content, Date(), id]
+            )
         }
     }
 
@@ -561,10 +591,92 @@ final class DatabaseService: Sendable {
 
     func moveSnippet(id: String, toFolder folderId: String?, atIndex index: Int) throws {
         try dbQueue.write { db in
-            try db.execute(
-                sql: "UPDATE snippet SET folderId = ?, sortIndex = ?, updatedAt = ? WHERE id = ?",
-                arguments: [folderId, index, Date(), id]
+            guard let movingSnippet = try Snippet.fetchOne(db, id: id) else {
+                throw SnippetMoveError.snippetNotFound
+            }
+
+            if let folderId,
+               try SnippetFolder.fetchOne(db, id: folderId) == nil {
+                throw SnippetMoveError.folderNotFound
+            }
+
+            let ordering = [
+                Column("sortIndex").asc,
+                Column("createdAt").asc,
+                Column("id").asc,
+            ]
+
+            func snippets(in folderId: String?) throws -> [Snippet] {
+                try Snippet
+                    .filter(Column("folderId") == folderId)
+                    .order(ordering)
+                    .fetchAll(db)
+            }
+
+            let sourceFolderId = movingSnippet.folderId
+            var sourceSnippets = try snippets(in: sourceFolderId)
+            guard let sourceIndex = sourceSnippets.firstIndex(where: { $0.id == id }) else {
+                throw SnippetMoveError.snippetNotFound
+            }
+
+            if sourceFolderId == folderId {
+                let originalIds = sourceSnippets.map(\.id)
+                let insertionIndex = min(max(index, 0), sourceSnippets.count)
+                sourceSnippets.remove(at: sourceIndex)
+
+                let adjustedIndex = sourceIndex < insertionIndex
+                    ? insertionIndex - 1
+                    : insertionIndex
+                sourceSnippets.insert(movingSnippet, at: adjustedIndex)
+
+                guard sourceSnippets.map(\.id) != originalIds else { return }
+                try updateSnippetOrder(
+                    sourceSnippets,
+                    movedSnippetId: id,
+                    destinationFolderId: folderId,
+                    in: db
+                )
+                return
+            }
+
+            sourceSnippets.remove(at: sourceIndex)
+            var destinationSnippets = try snippets(in: folderId)
+            let insertionIndex = min(max(index, 0), destinationSnippets.count)
+            destinationSnippets.insert(movingSnippet, at: insertionIndex)
+
+            try updateSnippetOrder(
+                sourceSnippets,
+                movedSnippetId: id,
+                destinationFolderId: sourceFolderId,
+                in: db
             )
+            try updateSnippetOrder(
+                destinationSnippets,
+                movedSnippetId: id,
+                destinationFolderId: folderId,
+                in: db
+            )
+        }
+    }
+
+    private func updateSnippetOrder(
+        _ snippets: [Snippet],
+        movedSnippetId: String,
+        destinationFolderId: String?,
+        in db: Database
+    ) throws {
+        for (sortIndex, snippet) in snippets.enumerated() {
+            if snippet.id == movedSnippetId {
+                try db.execute(
+                    sql: "UPDATE snippet SET folderId = ?, sortIndex = ?, updatedAt = ? WHERE id = ?",
+                    arguments: [destinationFolderId, sortIndex, Date(), snippet.id]
+                )
+            } else if snippet.sortIndex != sortIndex {
+                try db.execute(
+                    sql: "UPDATE snippet SET sortIndex = ? WHERE id = ?",
+                    arguments: [sortIndex, snippet.id]
+                )
+            }
         }
     }
 
@@ -655,4 +767,18 @@ final class DatabaseService: Sendable {
         return decrypt(rows)
     }
 
+}
+
+enum SnippetMoveError: Error, LocalizedError {
+    case snippetNotFound
+    case folderNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .snippetNotFound:
+            return "The snippet no longer exists."
+        case .folderNotFound:
+            return "The destination folder no longer exists."
+        }
+    }
 }

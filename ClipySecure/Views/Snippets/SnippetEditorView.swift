@@ -1,7 +1,15 @@
 import SwiftUI
 
+private enum SnippetContainer: Hashable {
+    case root
+    case folder(String)
+}
+
 struct SnippetEditorView: View {
     @Bindable var viewModel: SnippetEditorViewModel
+    @State private var expandedFolderIds: Set<String> = []
+    @State private var targetedContainer: SnippetContainer?
+    @State private var targetedSnippetId: String?
 
     var body: some View {
         NavigationSplitView {
@@ -32,36 +40,77 @@ struct SnippetEditorView: View {
     private var sidebar: some View {
         List(selection: $viewModel.selectedSnippetId) {
             // Root-level snippets section
-            Section("Snippets") {
+            Section {
                 ForEach(viewModel.rootSnippets) { snippet in
-                    Text(snippet.title)
-                        .tag(snippet.id)
+                    snippetRow(snippet, inFolder: nil)
                 }
 
                 if viewModel.rootSnippets.isEmpty {
                     Text("No root snippets")
                         .foregroundStyle(.tertiary)
                         .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .dropDestination(
+                            for: String.self,
+                            action: { items, _ in
+                                moveDroppedSnippets(items, toFolder: nil, atIndex: 0)
+                            },
+                            isTargeted: { isTargeted in
+                                setDropTarget(.root, isTargeted: isTargeted)
+                            }
+                        )
                 }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                viewModel.selectRoot()
+            } header: {
+                Text("Snippets")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .background(dropTargetBackground(for: .root))
+                    .onTapGesture {
+                        viewModel.selectRoot()
+                    }
+                    .dropDestination(
+                        for: String.self,
+                        action: { items, _ in
+                            moveDroppedSnippets(
+                                items,
+                                toFolder: nil,
+                                atIndex: viewModel.rootSnippets.count
+                            )
+                        },
+                        isTargeted: { isTargeted in
+                            setDropTarget(.root, isTargeted: isTargeted)
+                        }
+                    )
             }
 
             // Folder sections
             ForEach(viewModel.folders) { folder in
-                DisclosureGroup {
+                DisclosureGroup(isExpanded: expansionBinding(for: folder.id)) {
                     ForEach(viewModel.snippets(inFolder: folder.id)) { snippet in
-                        Text(snippet.title)
-                            .tag(snippet.id)
+                        snippetRow(snippet, inFolder: folder.id)
                     }
                 } label: {
                     Label(folder.title, systemImage: "folder")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
+                        .background(dropTargetBackground(for: .folder(folder.id)))
                         .onTapGesture {
                             viewModel.selectFolder(folder.id)
                         }
+                        .dropDestination(
+                            for: String.self,
+                            action: { items, _ in
+                                moveDroppedSnippets(
+                                    items,
+                                    toFolder: folder.id,
+                                    atIndex: viewModel.snippets(inFolder: folder.id).count
+                                )
+                            },
+                            isTargeted: { isTargeted in
+                                setDropTarget(.folder(folder.id), isTargeted: isTargeted)
+                            }
+                        )
                 }
             }
         }
@@ -80,6 +129,95 @@ struct SnippetEditorView: View {
                     viewModel.isRootSelected = true
                 }
             }
+        }
+    }
+
+    private func snippetRow(_ snippet: Snippet, inFolder folderId: String?) -> some View {
+        Text(snippet.title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag(snippet.id)
+            .draggable(snippet.id)
+            .overlay(alignment: .top) {
+                if targetedSnippetId == snippet.id {
+                    Rectangle()
+                        .fill(Color.accentColor)
+                        .frame(height: 2)
+                }
+            }
+            .dropDestination(
+                for: String.self,
+                action: { items, _ in
+                    let destinationSnippets = folderId.map(viewModel.snippets(inFolder:))
+                        ?? viewModel.rootSnippets
+                    guard let destinationIndex = destinationSnippets.firstIndex(where: {
+                        $0.id == snippet.id
+                    }) else {
+                        return false
+                    }
+                    return moveDroppedSnippets(
+                        items,
+                        toFolder: folderId,
+                        atIndex: destinationIndex
+                    )
+                },
+                isTargeted: { isTargeted in
+                    setDropTarget(snippetId: snippet.id, isTargeted: isTargeted)
+                }
+            )
+    }
+
+    private func expansionBinding(for folderId: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedFolderIds.contains(folderId) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedFolderIds.insert(folderId)
+                } else {
+                    expandedFolderIds.remove(folderId)
+                }
+            }
+        )
+    }
+
+    private func moveDroppedSnippets(
+        _ snippetIds: [String],
+        toFolder folderId: String?,
+        atIndex index: Int
+    ) -> Bool {
+        guard snippetIds.count == 1, let snippetId = snippetIds.first else { return false }
+        let didMove = viewModel.moveSnippet(snippetId, toFolder: folderId, atIndex: index)
+        guard didMove else { return false }
+
+        if let folderId {
+            expandedFolderIds.insert(folderId)
+        }
+        targetedContainer = nil
+        targetedSnippetId = nil
+        return true
+    }
+
+    private func setDropTarget(_ container: SnippetContainer, isTargeted: Bool) {
+        if isTargeted {
+            targetedContainer = container
+        } else if targetedContainer == container {
+            targetedContainer = nil
+        }
+    }
+
+    private func setDropTarget(snippetId: String, isTargeted: Bool) {
+        if isTargeted {
+            targetedSnippetId = snippetId
+        } else if targetedSnippetId == snippetId {
+            targetedSnippetId = nil
+        }
+    }
+
+    @ViewBuilder
+    private func dropTargetBackground(for container: SnippetContainer) -> some View {
+        if targetedContainer == container {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.accentColor.opacity(0.18))
         }
     }
 
