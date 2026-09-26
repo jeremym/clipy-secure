@@ -202,6 +202,125 @@ final class DatabaseServiceTests: XCTestCase {
         XCTAssertFalse(afterDelete.contains { $0.id == snippet.id })
     }
 
+    func testReorderSnippetsWithinFolderInBothDirections() throws {
+        let db = try makeService()
+        let folder = SnippetFolder(title: "Reorder", sortIndex: 0)
+        try db.saveFolder(folder)
+
+        let first = Snippet(folderId: folder.id, title: "First", sortIndex: 0)
+        let second = Snippet(folderId: folder.id, title: "Second", sortIndex: 1)
+        let third = Snippet(folderId: folder.id, title: "Third", sortIndex: 2)
+        try db.saveSnippet(first)
+        try db.saveSnippet(second)
+        try db.saveSnippet(third)
+
+        try db.moveSnippet(id: third.id, toFolder: folder.id, atIndex: 0)
+        var snippets = try db.fetchSnippets(inFolder: folder.id)
+        XCTAssertEqual(snippets.map(\.title), ["Third", "First", "Second"])
+        XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
+
+        try db.moveSnippet(id: third.id, toFolder: folder.id, atIndex: 3)
+        snippets = try db.fetchSnippets(inFolder: folder.id)
+        XCTAssertEqual(snippets.map(\.title), ["First", "Second", "Third"])
+        XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
+    }
+
+    func testMoveSnippetBetweenFoldersNormalizesBothFolders() throws {
+        let db = try makeService()
+        let source = SnippetFolder(title: "Source", sortIndex: 0)
+        let destination = SnippetFolder(title: "Destination", sortIndex: 1)
+        try db.saveFolder(source)
+        try db.saveFolder(destination)
+
+        let sourceFirst = Snippet(folderId: source.id, title: "Source First", sortIndex: 4)
+        let moving = Snippet(folderId: source.id, title: "Moving", sortIndex: 9)
+        let destinationFirst = Snippet(folderId: destination.id, title: "Destination First", sortIndex: 3)
+        let destinationLast = Snippet(folderId: destination.id, title: "Destination Last", sortIndex: 8)
+        try db.saveSnippet(sourceFirst)
+        try db.saveSnippet(moving)
+        try db.saveSnippet(destinationFirst)
+        try db.saveSnippet(destinationLast)
+
+        try db.moveSnippet(id: moving.id, toFolder: destination.id, atIndex: 1)
+
+        let sourceSnippets = try db.fetchSnippets(inFolder: source.id)
+        XCTAssertEqual(sourceSnippets.map(\.title), ["Source First"])
+        XCTAssertEqual(sourceSnippets.map(\.sortIndex), [0])
+
+        let destinationSnippets = try db.fetchSnippets(inFolder: destination.id)
+        XCTAssertEqual(
+            destinationSnippets.map(\.title),
+            ["Destination First", "Moving", "Destination Last"]
+        )
+        XCTAssertEqual(destinationSnippets.map(\.sortIndex), [0, 1, 2])
+        XCTAssertEqual(destinationSnippets[1].folderId, destination.id)
+    }
+
+    func testMoveSnippetBetweenRootAndFolder() throws {
+        let db = try makeService()
+        let folder = SnippetFolder(title: "Folder", sortIndex: 0)
+        try db.saveFolder(folder)
+
+        let rootFirst = Snippet(title: "Root First", sortIndex: 0)
+        let rootLast = Snippet(title: "Root Last", sortIndex: 1)
+        let folderSnippet = Snippet(folderId: folder.id, title: "Folder Snippet", sortIndex: 0)
+        try db.saveSnippet(rootFirst)
+        try db.saveSnippet(rootLast)
+        try db.saveSnippet(folderSnippet)
+
+        try db.moveSnippet(id: rootFirst.id, toFolder: folder.id, atIndex: 0)
+        XCTAssertEqual(
+            try db.fetchSnippets(inFolder: folder.id).map(\.title),
+            ["Root First", "Folder Snippet"]
+        )
+        XCTAssertEqual(try db.fetchRootSnippets().map(\.title), ["Root Last"])
+
+        try db.moveSnippet(id: folderSnippet.id, toFolder: nil, atIndex: 0)
+        let rootSnippets = try db.fetchRootSnippets()
+        XCTAssertEqual(rootSnippets.map(\.title), ["Folder Snippet", "Root Last"])
+        XCTAssertEqual(rootSnippets.map(\.sortIndex), [0, 1])
+    }
+
+    func testMoveSnippetRejectsMissingRecordsWithoutChangingOrder() throws {
+        let db = try makeService()
+        let folder = SnippetFolder(title: "Folder", sortIndex: 0)
+        try db.saveFolder(folder)
+        let snippet = Snippet(folderId: folder.id, title: "Unmoved", sortIndex: 0)
+        try db.saveSnippet(snippet)
+
+        XCTAssertThrowsError(
+            try db.moveSnippet(id: "missing", toFolder: folder.id, atIndex: 0)
+        )
+        XCTAssertThrowsError(
+            try db.moveSnippet(id: snippet.id, toFolder: "missing", atIndex: 0)
+        )
+
+        let snippets = try db.fetchSnippets(inFolder: folder.id)
+        XCTAssertEqual(snippets.map(\.id), [snippet.id])
+        XCTAssertEqual(snippets.map(\.sortIndex), [0])
+    }
+
+    func testFieldUpdatesDoNotUndoSnippetMove() throws {
+        let db = try makeService()
+        let source = SnippetFolder(title: "Source", sortIndex: 0)
+        let destination = SnippetFolder(title: "Destination", sortIndex: 1)
+        try db.saveFolder(source)
+        try db.saveFolder(destination)
+        let snippet = Snippet(folderId: source.id, title: "Before", content: "Old", sortIndex: 0)
+        try db.saveSnippet(snippet)
+
+        try db.moveSnippet(id: snippet.id, toFolder: destination.id, atIndex: 0)
+        try db.updateSnippetTitle(id: snippet.id, title: "After")
+        try db.updateSnippetContent(id: snippet.id, content: "New")
+
+        XCTAssertTrue(try db.fetchSnippets(inFolder: source.id).isEmpty)
+        let movedSnippet = try XCTUnwrap(db.fetchSnippets(inFolder: destination.id).first)
+        XCTAssertEqual(movedSnippet.folderId, destination.id)
+        XCTAssertEqual(movedSnippet.sortIndex, 0)
+        XCTAssertEqual(movedSnippet.title, "After")
+        XCTAssertEqual(movedSnippet.content, "New")
+    }
+
     func testExcludedAppCRUD() throws {
         let db = try makeService()
         try db.addExcludedApp(bundleId: "com.test.app", appName: "Test App")
@@ -499,6 +618,38 @@ final class ImportDeduplicationTests: XCTestCase {
 
         try? FileManager.default.removeItem(at: url1)
         try? FileManager.default.removeItem(at: url2)
+    }
+
+    func testExportPreservesReorderedSnippetOrder() throws {
+        let dbQueue = try makeDbQueue()
+        let db = try DatabaseService(dbQueue: dbQueue)
+        let folder = SnippetFolder(title: "Ordered", sortIndex: 0)
+        try db.saveFolder(folder)
+
+        let first = Snippet(folderId: folder.id, title: "First", sortIndex: 0)
+        let second = Snippet(folderId: folder.id, title: "Second", sortIndex: 1)
+        let third = Snippet(folderId: folder.id, title: "Third", sortIndex: 2)
+        try db.saveSnippet(first)
+        try db.saveSnippet(second)
+        try db.saveSnippet(third)
+        try db.moveSnippet(id: third.id, toFolder: folder.id, atIndex: 0)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-export-\(UUID().uuidString).xml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try SnippetImportExport.exportXML(from: dbQueue, to: url)
+
+        let xmlDocument = try XMLDocument(contentsOf: url)
+        let snippetElements = try XCTUnwrap(
+            xmlDocument.rootElement()?
+                .elements(forName: "folder").first?
+                .elements(forName: "snippets").first?
+                .elements(forName: "snippet")
+        )
+        let titles = snippetElements.compactMap {
+            $0.elements(forName: "title").first?.stringValue
+        }
+        XCTAssertEqual(titles, ["Third", "First", "Second"])
     }
 }
 

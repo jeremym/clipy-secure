@@ -15,7 +15,17 @@ final class SnippetEditorViewModel {
 
     private let databaseService: DatabaseService
     private var observationTask: Task<Void, Never>?
-    private var saveTask: Task<Void, Never>?
+    private var saveTasks: [SnippetSaveKey: Task<Void, Never>] = [:]
+
+    private enum SnippetEditField: Hashable {
+        case title
+        case content
+    }
+
+    private struct SnippetSaveKey: Hashable {
+        let snippetId: String
+        let field: SnippetEditField
+    }
 
     init(databaseService: DatabaseService) {
         self.databaseService = databaseService
@@ -42,10 +52,18 @@ final class SnippetEditorViewModel {
     private func startObservation() {
         let observation = ValueObservation.tracking { db -> ([SnippetFolder], [Snippet]) in
             let folders = try SnippetFolder
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             let snippets = try Snippet
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             return (folders, snippets)
         }
@@ -138,6 +156,7 @@ final class SnippetEditorViewModel {
     }
 
     func deleteSnippet(_ snippetId: String) {
+        cancelPendingSaves(for: snippetId)
         do {
             try databaseService.deleteSnippet(id: snippetId)
         } catch {
@@ -157,31 +176,66 @@ final class SnippetEditorViewModel {
     }
 
     func updateSnippetContent(_ snippetId: String, content: String) {
-        debounceSave(snippetId: snippetId) { snippet in
-            snippet.content = content
+        let key = SnippetSaveKey(snippetId: snippetId, field: .content)
+        debounceSave(key: key) { [databaseService] in
+            try databaseService.updateSnippetContent(id: snippetId, content: content)
         }
     }
 
     func updateSnippetTitle(_ snippetId: String, title: String) {
-        debounceSave(snippetId: snippetId) { snippet in
-            snippet.title = title
+        let key = SnippetSaveKey(snippetId: snippetId, field: .title)
+        debounceSave(key: key) { [databaseService] in
+            try databaseService.updateSnippetTitle(id: snippetId, title: title)
         }
     }
 
-    private func debounceSave(snippetId: String, apply: @escaping (inout Snippet) -> Void) {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            guard var snippet = allSnippets.first(where: { $0.id == snippetId }) else { return }
-            apply(&snippet)
-            snippet.updatedAt = Date()
+    private func debounceSave(key: SnippetSaveKey, save: @escaping () throws -> Void) {
+        saveTasks[key]?.cancel()
+        saveTasks[key] = Task {
             do {
-                try databaseService.saveSnippet(snippet)
+                try await Task.sleep(for: .milliseconds(300))
+            } catch is CancellationError {
+                return
+            } catch {
+                Logger.database.error("Failed while waiting to save snippet: \(error.localizedDescription)")
+                return
+            }
+            guard !Task.isCancelled else { return }
+            do {
+                try save()
             } catch {
                 Logger.database.error("Failed to save snippet: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func cancelPendingSaves(for snippetId: String) {
+        let keys = saveTasks.keys.filter { $0.snippetId == snippetId }
+        for key in keys {
+            saveTasks[key]?.cancel()
+            saveTasks[key] = nil
+        }
+    }
+
+    @discardableResult
+    func moveSnippet(_ snippetId: String, toFolder folderId: String?, atIndex index: Int) -> Bool {
+        guard allSnippets.contains(where: { $0.id == snippetId }) else { return false }
+        if let folderId,
+           !folders.contains(where: { $0.id == folderId }) {
+            return false
+        }
+
+        do {
+            try databaseService.moveSnippet(id: snippetId, toFolder: folderId, atIndex: index)
+        } catch {
+            Logger.database.error("Failed to move snippet: \(error.localizedDescription)")
+            return false
+        }
+
+        selectedSnippetId = snippetId
+        selectedFolderId = folderId
+        isRootSelected = folderId == nil
+        return true
     }
 
     func selectFolder(_ folderId: String?) {
