@@ -85,10 +85,18 @@ struct SnippetImportExport: Sendable {
     static func exportXML(from dbQueue: DatabaseQueue, to url: URL) throws {
         let (folders, allSnippets) = try dbQueue.read { db -> ([SnippetFolder], [Snippet]) in
             let folders = try SnippetFolder
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             let snippets = try Snippet
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             return (folders, snippets)
         }

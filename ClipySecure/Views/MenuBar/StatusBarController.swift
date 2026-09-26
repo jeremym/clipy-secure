@@ -131,10 +131,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func startSnippetObservation() {
         let observation = ValueObservation.tracking { db -> ([SnippetFolder], [Snippet]) in
             let folders = try SnippetFolder
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             let snippets = try Snippet
-                .order(Column("sortIndex").asc)
+                .order(
+                    Column("sortIndex").asc,
+                    Column("createdAt").asc,
+                    Column("id").asc
+                )
                 .fetchAll(db)
             return (folders, snippets)
         }
