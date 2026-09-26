@@ -6,6 +6,7 @@ extension Defaults.Keys {
     static let menuItemTitleMaxLength = Key<Int>("menuItemTitleMaxLength", default: 40)
     static let numberOfItemsInline = Key<Int>("numberOfItemsInline", default: 5)
     static let numberOfItemsInFolder = Key<Int>("numberOfItemsInFolder", default: 10)
+    static let menuShortcutKeys = Key<String>("menuShortcutKeys", default: MenuShortcutKeys.default)
     static let showNumbersInMenu = Key<Bool>("showNumbersInMenu", default: true)
     static let showMenuAtMousePointer = Key<Bool>("showMenuAtMousePointer", default: true)
     static let reorderAfterPaste = Key<Bool>("reorderAfterPaste", default: true)

@@ -10,6 +10,7 @@ struct MenuSettingsView: View {
     @Default(.showTooltips) var showTooltips
     @Default(.tooltipMaxLength) var tooltipMaxLength
     @Default(.memorySnippetFolderName) var memorySnippetFolderName
+    @Default(.menuShortcutKeys) var menuShortcutKeys
 
     var body: some View {
         Form {
@@ -24,6 +25,30 @@ struct MenuSettingsView: View {
                 Text("Display")
             } footer: {
                 Text("Controls how each clipboard entry appears in the menu. Longer titles show more context; image thumbnails show a preview for copied images.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField("Shortcut keys", text: $menuShortcutKeys)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                    .onChange(of: menuShortcutKeys) { _, newValue in
+                        // Keep the stored value in the same shape the menu uses:
+                        // no spaces, no duplicates, lowercased.
+                        let cleaned = String(MenuShortcutKeys.normalized(newValue))
+                        if cleaned != newValue {
+                            menuShortcutKeys = cleaned
+                        }
+                    }
+                Button("Reset to 1, 2, 3\u{2026}") {
+                    menuShortcutKeys = MenuShortcutKeys.default
+                }
+                .disabled(menuShortcutKeys == MenuShortcutKeys.default)
+            } header: {
+                Text("Menu shortcut keys")
+            } footer: {
+                Text("While the clip menu is open, press one of these keys to paste that entry instantly. Inline items take the first keys in order; folders continue after them. Remove a key \u{2014} a digit, say \u{2014} to free it so you can instead type-jump to a snippet folder whose name starts with that character. Only single characters work, so at most the first ten give a shortcut.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -31,6 +31,37 @@ final class ClipItemHashTests: XCTestCase {
     }
 }
 
+final class MenuShortcutKeysTests: XCTestCase {
+
+    func testDefaultLeadsWithDigits() {
+        let keys = MenuShortcutKeys.normalized(MenuShortcutKeys.default)
+        XCTAssertEqual(keys.prefix(5).map(String.init), ["1", "2", "3", "4", "5"])
+        // Inline 1–5 then the first folder key is the sixth slot.
+        XCTAssertEqual(MenuShortcutKeys.key(at: 5, in: keys), "6")
+    }
+
+    func testNormalizeStripsWhitespaceLowercasesAndDedupes() {
+        let keys = MenuShortcutKeys.normalized(" 1 2  a A b 1 ")
+        XCTAssertEqual(keys.map(String.init), ["1", "2", "a", "b"])
+    }
+
+    func testKeyOutOfRangeIsEmpty() {
+        let keys = MenuShortcutKeys.normalized("12")
+        XCTAssertEqual(MenuShortcutKeys.key(at: 0, in: keys), "1")
+        XCTAssertEqual(MenuShortcutKeys.key(at: 2, in: keys), "")
+        XCTAssertEqual(MenuShortcutKeys.key(at: -1, in: keys), "")
+    }
+
+    func testCustomSequenceOmittingDigitsFreesThem() {
+        // A user who drops "1" and "2" so those keys are free for type-jumping
+        // to snippet folders named like "1Password".
+        let keys = MenuShortcutKeys.normalized("34567890")
+        XCTAssertEqual(MenuShortcutKeys.key(at: 0, in: keys), "3")
+        XCTAssertFalse(keys.contains("1"))
+        XCTAssertFalse(keys.contains("2"))
+    }
+}
+
 final class ClipItemCodableTests: XCTestCase {
 
     func testTextClipItemRoundTrip() {
