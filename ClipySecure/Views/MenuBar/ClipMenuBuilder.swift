@@ -33,12 +33,13 @@ struct ClipMenuBuilder {
         // If inlineCount is 0, show all items inline
         let itemsInline = inlineCount == 0 ? displayItems.count : min(inlineCount, displayItems.count)
 
-        // Inline items prefixed with letter keys for type-ahead
-        let letterKeys = "abcdefghijklmnopqrstuvwxyz"
+        // One shared, user-configurable key sequence spans the whole top level:
+        // inline rows take the first slots and folder rows continue after them,
+        // so a keystroke is never claimed by two visible rows at once.
+        let shortcutKeys = MenuShortcutKeys.normalized(Defaults[.menuShortcutKeys])
+
         for index in 0..<itemsInline {
-            let prefix = index < letterKeys.count
-                ? String(letterKeys[letterKeys.index(letterKeys.startIndex, offsetBy: index)])
-                : ""
+            let prefix = MenuShortcutKeys.key(at: index, in: shortcutKeys)
             let menuItem = buildHistoryItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: pasteAction)
             menu.addItem(menuItem)
 
@@ -51,18 +52,20 @@ struct ClipMenuBuilder {
             let remaining = Array(displayItems[itemsInline...])
             let chunks = remaining.chunked(into: folderSize)
 
-            let submenuKeys = "1234567890abcdefghijklmnopqrstuvwxyz"
-
             for (chunkIndex, chunk) in chunks.enumerated() {
-                let folderTitle = "\(chunkIndex + 1)"
+                // Folder rows continue the same sequence the inline rows began,
+                // so the first folder is keyed to whatever follows the last
+                // inline item (e.g. inline 1–5 then folders 6, 7, …).
+                let folderKey = MenuShortcutKeys.key(at: itemsInline + chunkIndex, in: shortcutKeys)
+                let folderTitle = folderKey.isEmpty ? "\(chunkIndex + 1)" : folderKey
 
                 let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
                 let submenu = NSMenu(title: folderTitle)
 
                 for (offset, item) in chunk.enumerated() {
-                    let subPrefix = offset < submenuKeys.count
-                        ? String(submenuKeys[submenuKeys.index(submenuKeys.startIndex, offsetBy: offset)])
-                        : ""
+                    // A submenu is its own key context — ancestors are suspended
+                    // while it is open — so its rows restart at the sequence head.
+                    let subPrefix = MenuShortcutKeys.key(at: offset, in: shortcutKeys)
                     let menuItem = buildHistoryItem(for: item, shortcutPrefix: subPrefix, target: target, action: pasteAction)
                     submenu.addItem(menuItem)
 
@@ -75,14 +78,18 @@ struct ClipMenuBuilder {
                 menu.addItem(folderItem)
 
                 // AppKit never matches a key equivalent against an item that owns
-                // a submenu, so the folder's digit lives on a hidden sibling —
+                // a submenu, so the folder's key lives on a hidden sibling —
                 // hidden items are still matched — whose action opens the folder.
-                let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
-                opener.target = target
-                opener.representedObject = folderItem
-                opener.isHidden = true
-                MenuKeyRouter.assign(key: folderTitle, to: opener)
-                menu.addItem(opener)
+                // With no key left in the sequence there is nothing to route, so
+                // the opener is skipped (the folder still opens by click/arrow).
+                if !folderKey.isEmpty {
+                    let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
+                    opener.target = target
+                    opener.representedObject = folderItem
+                    opener.isHidden = true
+                    MenuKeyRouter.assign(key: folderKey, to: opener)
+                    menu.addItem(opener)
+                }
             }
         }
     }
@@ -430,6 +437,44 @@ struct ClipMenuBuilder {
         altItem.target = target
         altItem.representedObject = item.id
         return altItem
+    }
+}
+
+// MARK: - Menu shortcut key sequence
+
+/// Resolves the single-key shortcuts shown beside clip-menu rows from the
+/// user-configurable `menuShortcutKeys` string.
+///
+/// One ordered list drives the whole top level of the ⌘⇧V menu: the inline
+/// history rows take the first characters, and the folder rows continue past
+/// them — so a keystroke is never bound to two visible rows at once. Removing a
+/// character from the sequence (a digit, say) frees that keystroke, which lets
+/// AppKit type-selection jump to a snippet folder whose name starts with it
+/// instead of the row previously claiming the key.
+enum MenuShortcutKeys {
+    /// Digits first, then letters — matches AppKit's single-character key
+    /// equivalents, so 10 distinct keys (1–9, 0) are usable before letters.
+    static let `default` = "1234567890abcdefghijklmnopqrstuvwxyz"
+
+    /// The sequence with whitespace removed, lowercased, and de-duplicated
+    /// (first occurrence wins). Lowercasing matches `MenuKeyRouter`, which keys
+    /// case-insensitively, so "a" and "A" can't both resolve to the same key.
+    static func normalized(_ raw: String) -> [Character] {
+        var seen = Set<Character>()
+        var result: [Character] = []
+        for character in raw.lowercased() where !character.isWhitespace {
+            if seen.insert(character).inserted {
+                result.append(character)
+            }
+        }
+        return result
+    }
+
+    /// The shortcut character at `index`, or "" when the sequence is shorter
+    /// than the menu is long — extra rows simply carry no single-key shortcut.
+    static func key(at index: Int, in keys: [Character]) -> String {
+        guard index >= 0, index < keys.count else { return "" }
+        return String(keys[index])
     }
 }
 
