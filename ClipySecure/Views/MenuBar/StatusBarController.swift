@@ -265,10 +265,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        let currentMode = menuMode
-        menuMode = .full
-
-        switch currentMode {
+        // Keep menuMode until the menu closes. popUp(mode:) calls this once to
+        // size the menu, then AppKit calls it again from menu.popUp; resetting to
+        // .full here made that second build ignore the requested mode and always
+        // show the full menu (review #5). menuDidClose restores .full.
+        switch menuMode {
         case .full:
             buildFullMenu(menu)
         case .historyOnly:
@@ -483,6 +484,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func clearAllClicked(_ sender: NSMenuItem) {
+        // The hotkey and Preferences both confirm before clearing; the menu item
+        // did not (review #3). Match them, with Cancel as the Return default.
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Clear History")
+        alert.informativeText = String(localized: "Are you sure you want to clear all clipboard history? This cannot be undone. Memorized items will be preserved.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: String(localized: "Clear"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
             try databaseService.deleteAll()
         } catch {

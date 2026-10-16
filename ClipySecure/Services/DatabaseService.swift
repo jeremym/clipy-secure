@@ -700,6 +700,17 @@ final class DatabaseService: Sendable {
         }
     }
 
+    /// Deletes one clip entirely — the row and its in-memory search-index entry.
+    /// Unlike `deleteAll`/`deleteOldest`, this ignores `isMemory`/`isPinned`: it
+    /// is the explicit "delete this clip" path, so an accidentally memorised
+    /// secret can actually be removed (review #2).
+    func deleteClip(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM ftsmem.clipItemFts WHERE clipId = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM clipItem WHERE id = ?", arguments: [id])
+        }
+    }
+
     func promoteToSnippet(clipItem: ClipItem, folderId: String?, sortIndex: Int) throws {
         let snippet = Snippet(
             folderId: folderId,

@@ -423,6 +423,31 @@ final class DatabaseServiceTests: XCTestCase {
         XCTAssertEqual(fetched?.stringValue, "fetch by id test")
     }
 
+    func testDeleteClipRemovesRowAndSearchIndex() throws {
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "delete-me-token")
+        try db.save(clip: clip)
+        XCTAssertNotNil(try db.fetchClipItem(id: clip.id))
+        XCTAssertFalse(try db.searchClips(query: "delete-me-token").isEmpty)
+
+        try db.deleteClip(id: clip.id)
+
+        XCTAssertNil(try db.fetchClipItem(id: clip.id))
+        XCTAssertTrue(try db.searchClips(query: "delete-me-token").isEmpty, "the FTS row must go too")
+    }
+
+    func testDeleteClipRemovesMemorizedClip() throws {
+        // The security gap in review #2: a memorised secret had no removal path.
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "secret-memory")
+        try db.save(clip: clip)
+        try db.setMemory(clipId: clip.id)
+
+        try db.deleteClip(id: clip.id)
+
+        XCTAssertNil(try db.fetchClipItem(id: clip.id))
+    }
+
     func testSnippetFolderCRUD() throws {
         let db = try makeService()
         let folder = SnippetFolder(title: "Test Folder", sortIndex: 0)
