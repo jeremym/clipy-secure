@@ -203,6 +203,84 @@ final class MemoryMenuKeyTests: XCTestCase {
     }
 }
 
+/// Snippet editor selection model (review #12/#13, plan §4). UI (highlight,
+/// focus, sidebar width) is manually verified; this covers the view-model logic.
+@MainActor
+final class SnippetSelectionTests: XCTestCase {
+
+    private func makeViewModel() throws -> (SnippetEditorViewModel, DatabaseService) {
+        let db = try DatabaseService(dbQueue: DatabaseQueue(configuration: Configuration()))
+        return (SnippetEditorViewModel(databaseService: db), db)
+    }
+
+    func testSelectionDerivesLegacyAccessors() throws {
+        let (vm, _) = try makeViewModel()
+
+        vm.selection = .snippet("s1")
+        XCTAssertEqual(vm.selectedSnippetId, "s1")
+        XCTAssertNil(vm.selectedFolderId)
+        XCTAssertFalse(vm.isRootSelected)
+
+        vm.selection = .folder("f1")
+        XCTAssertEqual(vm.selectedFolderId, "f1")
+        XCTAssertNil(vm.selectedSnippetId)
+        XCTAssertFalse(vm.isRootSelected)
+
+        vm.selection = .root
+        XCTAssertTrue(vm.isRootSelected)
+        XCTAssertNil(vm.selectedFolderId)
+        XCTAssertNil(vm.selectedSnippetId)
+    }
+
+    func testAddSnippetIntoSelectedFolder() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "Work", sortIndex: 0)
+        try db.saveFolder(folder)
+        vm.selection = .folder(folder.id)
+
+        vm.addSnippet()
+
+        let saved = try db.fetchSnippets(inFolder: folder.id)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(vm.selectedSnippetId, saved.first?.id, "the new snippet becomes selected")
+    }
+
+    func testAddSnippetWithNoSelectionAndNoFoldersCreatesMySnippets() throws {
+        let (vm, db) = try makeViewModel()
+        vm.selection = nil
+
+        vm.addSnippet()
+
+        let folders = try db.fetchFolders()
+        XCTAssertEqual(folders.count, 1)
+        XCTAssertEqual(folders.first?.title, "My Snippets")
+        let saved = try db.fetchSnippets(inFolder: folders[0].id)
+        XCTAssertEqual(saved.count, 1, "snippet should land in the new folder, not at the root")
+    }
+
+    func testFolderHasSnippets() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "F", sortIndex: 0)
+        try db.saveFolder(folder)
+        // `allSnippets` is normally filled by the async observation; set it
+        // directly for a deterministic check.
+        vm.allSnippets = [Snippet(folderId: folder.id, title: "x", sortIndex: 0)]
+        XCTAssertTrue(vm.folderHasSnippets(folder.id))
+        XCTAssertFalse(vm.folderHasSnippets("other"))
+    }
+
+    func testDeleteFolderClearsSelection() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "F", sortIndex: 0)
+        try db.saveFolder(folder)
+        vm.selection = .folder(folder.id)
+
+        vm.deleteFolder(folder.id)
+
+        XCTAssertNil(vm.selection)
+    }
+}
+
 final class ClipItemCodableTests: XCTestCase {
 
     func testTextClipItemRoundTrip() {

@@ -10,6 +10,9 @@ struct SnippetEditorView: View {
     @State private var expandedFolderIds: Set<String> = []
     @State private var targetedContainer: SnippetContainer?
     @State private var targetedSnippetId: String?
+    /// Set when the user asks to delete a folder that still holds snippets, so
+    /// the cascade is confirmed rather than silent (review #13).
+    @State private var folderPendingDelete: String?
 
     var body: some View {
         NavigationSplitView {
@@ -25,50 +28,64 @@ struct SnippetEditorView: View {
                 Button(action: viewModel.addSnippet) {
                     Label("Add Snippet", systemImage: "doc.badge.plus")
                 }
-                Button(action: viewModel.deleteSelected) {
+                Button(action: attemptDelete) {
                     Label("Delete", systemImage: "trash")
                 }
                 .disabled(viewModel.selectedFolderId == nil && viewModel.selectedSnippetId == nil)
             }
         }
+        .confirmationDialog(
+            "Delete this folder and its snippets?",
+            isPresented: deleteConfirmationBinding,
+            presenting: folderPendingDelete
+        ) { folderId in
+            Button("Delete Folder", role: .destructive) {
+                viewModel.deleteFolder(folderId)
+                folderPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                folderPendingDelete = nil
+            }
+        } message: { folderId in
+            let count = viewModel.snippets(inFolder: folderId).count
+            Text("\(count) snippet\(count == 1 ? "" : "s") in this folder will also be deleted. This can't be undone.")
+        }
         .frame(minWidth: 600, minHeight: 450)
+    }
+
+    private var deleteConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { folderPendingDelete != nil },
+            set: { if !$0 { folderPendingDelete = nil } }
+        )
+    }
+
+    /// Deletes the selection, but routes a folder that still has snippets through
+    /// a confirmation first. Snippets and empty folders delete immediately.
+    private func attemptDelete() {
+        if let folderId = viewModel.selectedFolderId, viewModel.folderHasSnippets(folderId) {
+            folderPendingDelete = folderId
+        } else {
+            viewModel.deleteSelected()
+        }
     }
 
     // MARK: - Sidebar
 
     @ViewBuilder
     private var sidebar: some View {
-        List(selection: $viewModel.selectedSnippetId) {
-            // Root-level snippets section
+        // One enum-typed selection binding drives the whole list, so folder rows
+        // and the root row take the AppKit selection highlight for free — no
+        // onTapGesture shims, no desync between folder and snippet selection.
+        List(selection: $viewModel.selection) {
             Section {
-                ForEach(viewModel.rootSnippets) { snippet in
-                    snippetRow(snippet, inFolder: nil)
-                }
-
-                if viewModel.rootSnippets.isEmpty {
-                    Text("No root snippets")
-                        .foregroundStyle(.tertiary)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .dropDestination(
-                            for: String.self,
-                            action: { items, _ in
-                                moveDroppedSnippets(items, toFolder: nil, atIndex: 0)
-                            },
-                            isTargeted: { isTargeted in
-                                setDropTarget(.root, isTargeted: isTargeted)
-                            }
-                        )
-                }
-            } header: {
-                Text("Snippets")
+                // Explicit, selectable root row so the "no folder" destination is
+                // discoverable instead of hidden behind the section header.
+                Label("Top level (no folder)", systemImage: "tray")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
+                    .tag(SnippetSidebarSelection.root)
                     .background(dropTargetBackground(for: .root))
-                    .onTapGesture {
-                        viewModel.selectRoot()
-                    }
                     .dropDestination(
                         for: String.self,
                         action: { items, _ in
@@ -82,6 +99,12 @@ struct SnippetEditorView: View {
                             setDropTarget(.root, isTargeted: isTargeted)
                         }
                     )
+
+                ForEach(viewModel.rootSnippets) { snippet in
+                    snippetRow(snippet, inFolder: nil)
+                }
+            } header: {
+                Text("Snippets")
             }
 
             // Folder sections
@@ -94,10 +117,8 @@ struct SnippetEditorView: View {
                     Label(folder.title, systemImage: "folder")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
+                        .tag(SnippetSidebarSelection.folder(folder.id))
                         .background(dropTargetBackground(for: .folder(folder.id)))
-                        .onTapGesture {
-                            viewModel.selectFolder(folder.id)
-                        }
                         .dropDestination(
                             for: String.self,
                             action: { items, _ in
@@ -115,28 +136,14 @@ struct SnippetEditorView: View {
             }
         }
         .listStyle(.sidebar)
-        .onChange(of: viewModel.selectedSnippetId) { _, newValue in
-            if let snippetId = newValue,
-               let snippet = viewModel.allSnippets.first(where: { $0.id == snippetId })
-            {
-                if let folderId = snippet.folderId {
-                    if viewModel.selectedFolderId != folderId {
-                        viewModel.selectedFolderId = folderId
-                    }
-                    viewModel.isRootSelected = false
-                } else {
-                    viewModel.selectedFolderId = nil
-                    viewModel.isRootSelected = true
-                }
-            }
-        }
+        .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 420)
     }
 
     private func snippetRow(_ snippet: Snippet, inFolder folderId: String?) -> some View {
         Text(snippet.title)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .tag(snippet.id)
+            .tag(SnippetSidebarSelection.snippet(snippet.id))
             .draggable(snippet.id)
             .overlay(alignment: .top) {
                 if targetedSnippetId == snippet.id {
@@ -272,6 +279,7 @@ private struct FolderDetailView: View {
 
     @State private var title: String = ""
     @State private var isEnabled: Bool = true
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         Form {
@@ -279,6 +287,7 @@ private struct FolderDetailView: View {
                 TextField("Folder Name", text: $title)
                     .textFieldStyle(.roundedBorder)
                     .font(.title3)
+                    .focused($nameFocused)
                     .onChange(of: title) { _, newValue in
                         let trimmed = newValue.trimmingCharacters(in: .whitespaces)
                         if !trimmed.isEmpty {
@@ -303,10 +312,14 @@ private struct FolderDetailView: View {
         .onAppear {
             title = folder.title
             isEnabled = folder.isEnabled
+            // Land the cursor in the name field so a freshly added folder can be
+            // renamed by typing straight away.
+            nameFocused = true
         }
         .onChange(of: folder.id) { _, _ in
             title = folder.title
             isEnabled = folder.isEnabled
+            nameFocused = true
         }
     }
 }
