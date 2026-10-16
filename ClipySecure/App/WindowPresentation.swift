@@ -14,21 +14,34 @@ import AppKit
 @MainActor
 enum ActivationPolicyManager {
     private static var promotionCount = 0
+    /// Who was frontmost when our first window opened, so focus can return there
+    /// when the last one closes (review #16).
+    private static var previousApp: NSRunningApplication?
 
     /// Promote to `.regular` (Dock icon + Cmd-Tab). Every call must be balanced
     /// by `endWindowSession()`, or the app will never return to the menu bar.
     static func beginWindowSession() {
-        promotionCount += 1
-        if promotionCount == 1 {
+        if promotionCount == 0 {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            // Don't record ourselves — otherwise closing would "restore" focus
+            // to the app we're demoting.
+            if frontmost?.bundleIdentifier != Bundle.main.bundleIdentifier {
+                previousApp = frontmost
+            }
             NSApp.setActivationPolicy(.regular)
         }
+        promotionCount += 1
     }
 
-    /// Demote back to `.accessory` once the last promoted window has closed.
+    /// Demote back to `.accessory` once the last promoted window has closed, and
+    /// hand focus back to whoever had it before. Demoting while active otherwise
+    /// lets AppKit pick an arbitrary app to activate (review #16).
     static func endWindowSession() {
         promotionCount = max(0, promotionCount - 1)
         if promotionCount == 0 {
             NSApp.setActivationPolicy(.accessory)
+            previousApp?.activate(from: .current)
+            previousApp = nil
         }
     }
 }

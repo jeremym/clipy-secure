@@ -6,10 +6,31 @@ final class DatabaseService: Sendable {
     let dbQueue: DatabaseQueue
     private let fieldEncryption: FieldEncryption
 
-    init() throws {
-        let appSupportURL = FileManager.default
+    /// The app-support directory holding the on-disk database.
+    static func storeDirectory() -> URL {
+        FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent(Constants.appSupportDirectoryName)
+    }
+
+    /// Deletes the on-disk database (and its WAL/SHM sidecars) and the encryption
+    /// key. The recovery path when the key can't be read — e.g. the Keychain
+    /// prompt was denied after a re-sign — so the next init starts fresh with a
+    /// new key and empty history (review #15). Destructive by design.
+    static func destroyStore() throws {
+        let dir = storeDirectory()
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            let url = dir.appendingPathComponent("clipy.db\(suffix)")
+            if fm.fileExists(atPath: url.path) {
+                try fm.removeItem(at: url)
+            }
+        }
+        try EncryptionKeyManager().deleteKey()
+    }
+
+    init() throws {
+        let appSupportURL = Self.storeDirectory()
 
         try FileManager.default.createDirectory(
             at: appSupportURL,

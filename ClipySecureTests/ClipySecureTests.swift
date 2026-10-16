@@ -697,6 +697,26 @@ final class SecurityFixTests: XCTestCase {
         XCTAssertNil(PasteboardReader.read(from: pasteboard), "Transient-marked content must never be stored")
     }
 
+    @MainActor
+    func testStoreTypesFiltersWhatIsRead() {
+        // review #9: storeTypes must gate what is read, not just whether a clip
+        // is saved at all.
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("test-\(UUID().uuidString)"))
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("some text", forType: .string)
+
+        // String disallowed → nothing to store.
+        XCTAssertNil(
+            PasteboardReader.read(from: pasteboard, storeTypes: [ClipContentType.tiff.rawValue]),
+            "a disallowed type must not be read"
+        )
+
+        // String allowed → read normally.
+        let allowed = PasteboardReader.read(from: pasteboard, storeTypes: [ClipContentType.string.rawValue])
+        XCTAssertEqual(allowed?.stringValue, "some text")
+        XCTAssertEqual(allowed?.primaryType, .string)
+    }
+
     func testEnforceLimitReportsDeletedCount() throws {
         let dbQueue = try DatabaseQueue(configuration: Configuration())
         let db = try DatabaseService(dbQueue: dbQueue)

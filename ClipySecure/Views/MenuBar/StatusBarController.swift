@@ -454,10 +454,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
 
-        let changeCount = pasteboard.changeCount
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(pasteboard.changeCount)
 
         Task {
             try? await Task.sleep(for: .milliseconds(100))
@@ -558,10 +556,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             fullItem = item
         }
         guard let changeCount = pasteService.writeToClipboard(fullItem) else { return }
-
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(changeCount)
 
         // Reorder after paste: update the item's timestamp so it moves to top of history
         if Defaults[.reorderAfterPaste] {

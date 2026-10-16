@@ -138,10 +138,8 @@ struct HistoryListView: View {
 
     private func pasteItem(_ item: ClipItem) {
         guard let changeCount = pasteService.writeToClipboard(item) else { return }
-
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(changeCount)
 
         onDismiss()
 
