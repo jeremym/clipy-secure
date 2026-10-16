@@ -203,6 +203,43 @@ final class MemoryMenuKeyTests: XCTestCase {
     }
 }
 
+/// Image storage (review #4): full-resolution bytes for faithful paste, a small
+/// thumbnail for display.
+final class ImageStorageTests: XCTestCase {
+
+    /// Builds a solid-colour image at a known pixel size without lockFocus
+    /// (forbidden per project rules).
+    private func makeImage(width: Int, height: Int) -> NSImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let cgImage = context.makeImage()!
+        return NSImage(cgImage: cgImage, size: NSSize(width: width, height: height))
+    }
+
+    private func pixelWidth(ofPNG data: Data) -> Int? {
+        NSBitmapImageRep(data: data)?.pixelsWide
+    }
+
+    func testPNGDataPreservesFullResolution() throws {
+        let image = makeImage(width: 800, height: 600)
+        let png = try XCTUnwrap(image.pngData())
+        XCTAssertEqual(pixelWidth(ofPNG: png), 800, "full image keeps its resolution")
+    }
+
+    func testThumbnailShrinksLargeImages() throws {
+        let image = makeImage(width: 800, height: 600)
+        let thumb = try XCTUnwrap(image.resizedToThumbnail(maxWidth: 200))
+        XCTAssertEqual(pixelWidth(ofPNG: thumb), 200, "thumbnail is capped at maxWidth")
+        XCTAssertLessThan(thumb.count, try XCTUnwrap(image.pngData()).count, "thumbnail is smaller than the full image")
+    }
+}
+
 /// Snippet editor selection model (review #12/#13, plan §4). UI (highlight,
 /// focus, sidebar width) is manually verified; this covers the view-model logic.
 @MainActor
@@ -446,6 +483,25 @@ final class DatabaseServiceTests: XCTestCase {
         try db.deleteClip(id: clip.id)
 
         XCTAssertNil(try db.fetchClipItem(id: clip.id))
+    }
+
+    func testImageClipStoresFullBytesAndThumbnailSeparately() throws {
+        // review #4: the full image and its display thumbnail are distinct
+        // encrypted columns and both survive a round trip.
+        let db = try makeService()
+        let full = Data(repeating: 0xAB, count: 4096)
+        let thumb = Data(repeating: 0xCD, count: 256)
+        let content = ClipContent(
+            primaryType: .tiff, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: full, thumbnailData: thumb, filenames: nil, urls: nil,
+            sourceAppId: nil, types: [.tiff]
+        )
+        let clip = ClipItem(content: content)
+        try db.save(clip: clip)
+
+        let fetched = try db.fetchClipItem(id: clip.id)
+        XCTAssertEqual(fetched?.imageData, full, "full image bytes must survive")
+        XCTAssertEqual(fetched?.thumbnailData, thumb, "the separate thumbnail must survive")
     }
 
     func testSnippetFolderCRUD() throws {

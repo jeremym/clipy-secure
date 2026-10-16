@@ -26,6 +26,7 @@ enum PasteboardReader: Sendable {
         var rtfData: Data?
         var pdfData: Data?
         var imageData: Data?
+        var thumbnailData: Data?
         var filenames: [String]?
         var urls: [String]?
 
@@ -81,14 +82,17 @@ enum PasteboardReader: Sendable {
             }
         }
 
-        // Read image (TIFF/PNG)
+        // Read image (TIFF/PNG). Store the full-resolution bytes so pasting the
+        // clip is faithful (review #4 — the old code stored only a 200px
+        // thumbnail and pasted that), plus a small thumbnail for display.
         if types.contains(.tiff) || types.contains(.png) {
             let imgType: NSPasteboard.PasteboardType = types.contains(.png) ? .png : .tiff
             if let data = pasteboard.data(forType: imgType),
-               let image = NSImage(data: data),
-               let thumbnail = image.resizedToThumbnail()
+               let image = NSImage(data: data)
             {
-                imageData = thumbnail
+                // Normalise to PNG so PasteService can write it back as .png.
+                imageData = image.pngData() ?? data
+                thumbnailData = image.resizedToThumbnail()
                 detectedTypes.append(.tiff)
             }
         }
@@ -120,6 +124,7 @@ enum PasteboardReader: Sendable {
             rtfData: rtfData,
             pdfData: pdfData,
             imageData: imageData,
+            thumbnailData: thumbnailData,
             filenames: filenames,
             urls: urls,
             sourceAppId: sourceAppId,

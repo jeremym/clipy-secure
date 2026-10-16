@@ -274,6 +274,17 @@ final class DatabaseService: Sendable {
             try db.execute(sql: "DROP TABLE IF EXISTS clipItemFts")
         }
 
+        migrator.registerMigration("v11-addEncThumbnail") { db in
+            // Separate the full image (encImageData) from a small display
+            // thumbnail (review #4). Nullable column, no row rewrite: existing
+            // image rows keep whatever encImageData already held (a 200px
+            // thumbnail from before this change — the original was never stored,
+            // so it cannot be recovered) and get a null thumbnail.
+            try db.alter(table: "clipItem") { t in
+                t.add(column: "encThumbnailData", .blob)
+            }
+        }
+
         return migrator
     }
 
@@ -338,6 +349,7 @@ final class DatabaseService: Sendable {
         stored.encRtfData = try clip.rtfData.map { try fieldEncryption.encrypt($0) }
         stored.encPdfData = try clip.pdfData.map { try fieldEncryption.encrypt($0) }
         stored.encImageData = try clip.imageData.map { try fieldEncryption.encrypt($0) }
+        stored.encThumbnailData = try clip.thumbnailData.map { try fieldEncryption.encrypt($0) }
         stored.encFilenames = try clip.filenames.map { try fieldEncryption.encrypt($0) }
         stored.encUrls = try clip.urls.map { try fieldEncryption.encrypt($0) }
         return stored
@@ -363,6 +375,9 @@ final class DatabaseService: Sendable {
             }
             if let enc = clip.encImageData {
                 item.imageData = try fieldEncryption.decryptData(enc)
+            }
+            if let enc = clip.encThumbnailData {
+                item.thumbnailData = try fieldEncryption.decryptData(enc)
             }
             if let enc = clip.encFilenames {
                 item.filenames = try fieldEncryption.decryptString(enc)

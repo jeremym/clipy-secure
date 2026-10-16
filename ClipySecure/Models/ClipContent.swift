@@ -16,7 +16,11 @@ struct ClipContent: Sendable {
     let stringValue: String?
     let rtfData: Data?
     let pdfData: Data?
+    /// Full-resolution image bytes (PNG), so pasting a stored image is faithful.
     let imageData: Data?
+    /// A small thumbnail derived from the full image, for display without
+    /// loading the original. nil for non-image clips.
+    let thumbnailData: Data?
     let filenames: [String]?
     let urls: [String]?
     let sourceAppId: String?

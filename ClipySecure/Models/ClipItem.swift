@@ -22,6 +22,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
     var encRtfData: Data?
     var encPdfData: Data?
     var encImageData: Data?
+    var encThumbnailData: Data?
     var encFilenames: Data?
     var encUrls: Data?
 
@@ -33,6 +34,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
     var rtfData: Data? = nil
     var pdfData: Data? = nil
     var imageData: Data? = nil
+    var thumbnailData: Data? = nil
     var filenames: String? = nil
     var urls: String? = nil
 
@@ -40,7 +42,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
         case id, contentHash, primaryType, createdAt, updatedAt
         case types, sourceAppId, isPinned, isMemory, memorizedAt
         case encTitle, encStringValue, encRtfData, encPdfData, encImageData
-        case encFilenames, encUrls
+        case encThumbnailData, encFilenames, encUrls
     }
 
     // MARK: - Text-only initializer (Phase 1 compat)
@@ -72,6 +74,7 @@ struct ClipItem: Codable, FetchableRecord, PersistableRecord, Identifiable, Send
         self.rtfData = content.rtfData
         self.pdfData = content.pdfData
         self.imageData = content.imageData
+        self.thumbnailData = content.thumbnailData
         self.sourceAppId = content.sourceAppId
         self.isPinned = false
         self.isMemory = false
