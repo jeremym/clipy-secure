@@ -62,10 +62,50 @@ extension NSWindow {
     /// inactive only places it at the top of *its own* layer, which leaves it
     /// beneath the frontmost app's windows. Activating first makes this app
     /// current, so the subsequent order-front is genuinely on top.
+    ///
+    /// Cooperative activation on macOS 14+ can refuse an accessory app's request
+    /// outright — a global hotkey plus a detached menu does not reliably count as
+    /// the user interacting with *this* app. When it refuses, `makeKeyAndOrderFront`
+    /// raises the window only within our own inactive layer, i.e. behind the
+    /// frontmost app. The fallback floats the window above everything until it
+    /// actually becomes key, then drops it back to a normal level so it behaves
+    /// like an ordinary window from then on. The collection behaviour makes the
+    /// window follow the user to the active Space (including a full-screen app's
+    /// own Space) rather than staying pinned where it first appeared.
     func presentDeferred() {
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         Task { @MainActor in
             NSApp.activate()
             makeKeyAndOrderFront(nil)
+            guard !NSApp.isActive else { return }
+            floatUntilKey()
         }
     }
+
+    /// Floats the window above the frontmost app until it becomes key, then
+    /// returns it to `.normal`. Used only when cooperative activation is refused.
+    private func floatUntilKey() {
+        level = .floating
+        let box = ObserverBox()
+        box.token = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: self,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.level = .normal
+            }
+            if let token = box.token {
+                NotificationCenter.default.removeObserver(token)
+                box.token = nil
+            }
+        }
+    }
+}
+
+/// Holds a one-shot notification token so the observer block can remove itself.
+/// `@unchecked Sendable` is sound here: the box is only ever touched on the main
+/// thread (the observer is registered with `queue: .main`).
+private final class ObserverBox: @unchecked Sendable {
+    var token: NSObjectProtocol?
 }

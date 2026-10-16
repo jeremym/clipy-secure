@@ -132,6 +132,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Target of the main-menu "Preferences…" item (⌘,), reached through the
+    /// responder chain. No-op until services are up (e.g. during onboarding),
+    /// since the window is created in `startServices()`.
+    @objc func openPreferences(_ sender: Any?) {
+        preferencesWindow?.showWindow()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         cleanupTask?.cancel()
 

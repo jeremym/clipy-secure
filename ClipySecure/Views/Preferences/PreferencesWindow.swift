@@ -49,8 +49,7 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
 
     func showWindow() {
         if let existing = window {
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            existing.presentDeferred()
             return
         }
 
