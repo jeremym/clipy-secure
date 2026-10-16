@@ -291,7 +291,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Menu Assembly
 
     private func buildFullMenu(_ menu: NSMenu) {
-        ClipMenuBuilder.addHistoryItems(
+        let nextKeyIndex = ClipMenuBuilder.addHistoryItems(
             to: menu,
             items: historyItems,
             target: self,
@@ -323,15 +323,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             action: #selector(snippetClicked(_:))
         )
 
-        // Memory section (below snippets)
-        menu.addItem(NSMenuItem.separator())
-        ClipMenuBuilder.addMemoryItems(
-            to: menu,
-            items: memoryItems,
-            target: self,
-            pasteAction: #selector(memoryItemClicked(_:)),
-            promoteAction: #selector(promoteMemoryClicked(_:))
-        )
+        // Memory section (below snippets), hidden entirely when the user turns it
+        // off. Inline rows continue the shared key sequence from where history
+        // stopped (nextKeyIndex), so no keystroke is claimed twice.
+        if Defaults[.showMemorySection] {
+            menu.addItem(NSMenuItem.separator())
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: memoryItems,
+                startingKeyIndex: nextKeyIndex,
+                target: self,
+                pasteAction: #selector(memoryItemClicked(_:)),
+                promoteAction: #selector(promoteMemoryClicked(_:)),
+                folderAction: #selector(historyFolderKeyPressed(_:))
+            )
+        }
 
         // Bottom section: Edit Snippets, Preferences, Quit
         menu.addItem(NSMenuItem.separator())

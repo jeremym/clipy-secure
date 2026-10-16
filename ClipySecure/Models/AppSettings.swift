@@ -24,6 +24,7 @@ extension Defaults.Keys {
     static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
     static let numberOfMemoryItemsInline = Key<Int>("numberOfMemoryItemsInline", default: 2)
     static let numberOfItemsPerMemoryFolder = Key<Int>("numberOfItemsPerMemoryFolder", default: 40)
+    static let showMemorySection = Key<Bool>("showMemorySection", default: true)
 }
 
 extension ClipContentType: CaseIterable {

@@ -10,11 +10,17 @@ struct GeneralSettingsView: View {
     @Default(.maxMemorySize) var maxMemorySize
     @Default(.numberOfMemoryItemsInline) var numberOfMemoryItemsInline
     @Default(.numberOfItemsPerMemoryFolder) var numberOfItemsPerMemoryFolder
+    @Default(.showMemorySection) var showMemorySection
 
-    private var memoryFolderCount: Int {
-        guard numberOfItemsPerMemoryFolder > 0 else { return 0 }
-        let remaining = maxMemorySize - numberOfMemoryItemsInline
-        return remaining > 0 ? Int(ceil(Double(remaining) / Double(numberOfItemsPerMemoryFolder))) : 0
+    private var memoryLayoutDescription: String {
+        let remaining = max(0, maxMemorySize - numberOfMemoryItemsInline)
+        if numberOfMemoryItemsInline == 0 {
+            return String(localized: "Menu layout: all memories in one Memory submenu")
+        }
+        if remaining == 0 {
+            return String(localized: "Menu layout: \(numberOfMemoryItemsInline) at top level")
+        }
+        return String(localized: "Menu layout: \(numberOfMemoryItemsInline) at top level, the rest in a Memory submenu")
     }
 
     private var folderCount: Int {
@@ -53,27 +59,31 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Toggle("Show Memory section in menu", isOn: $showMemorySection)
                 Stepper(
                     "Max memory size: \(maxMemorySize)",
                     value: $maxMemorySize,
                     in: 2...999
                 )
+                .disabled(!showMemorySection)
                 Stepper(
-                    "Memory items at top level: \(numberOfMemoryItemsInline == 0 ? "All" : "\(numberOfMemoryItemsInline)")",
+                    "Memory items at top level: \(numberOfMemoryItemsInline == 0 ? "None (submenu)" : "\(numberOfMemoryItemsInline)")",
                     value: $numberOfMemoryItemsInline,
                     in: 0...50
                 )
+                .disabled(!showMemorySection)
                 Stepper(
                     "Items per memory folder: \(numberOfItemsPerMemoryFolder)",
                     value: $numberOfItemsPerMemoryFolder,
                     in: 5...100
                 )
+                .disabled(!showMemorySection)
             } header: {
                 Text("Memory")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Menu layout: \(numberOfMemoryItemsInline) at top level + \(memoryFolderCount) folder\(memoryFolderCount == 1 ? "" : "s") of \(numberOfItemsPerMemoryFolder)")
-                    Text("Tip: set max memory = inline + (folders \u{00D7} items per folder) for evenly filled folders.")
+                    Text(memoryLayoutDescription)
+                    Text("Inline rows share one key sequence with history, continuing after it; the Memory submenu opens with the next key.")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

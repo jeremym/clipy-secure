@@ -1,4 +1,5 @@
 import AppKit
+import Defaults
 import XCTest
 @testable import ClipySecure
 import GRDB
@@ -59,6 +60,146 @@ final class MenuShortcutKeysTests: XCTestCase {
         XCTAssertEqual(MenuShortcutKeys.key(at: 0, in: keys), "3")
         XCTAssertFalse(keys.contains("1"))
         XCTAssertFalse(keys.contains("2"))
+    }
+
+    // MARK: - Shared-sequence continuation (review #6)
+
+    func testTopLevelSlotsInlinePlusFolders() {
+        // 5 inline + ceil(27 / 10) = 3 folders → 8 slots, so the memory section
+        // begins keying its rows at index 8.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 32, inlineCount: 5, folderSize: 10), 8)
+    }
+
+    func testTopLevelSlotsAllInlineWhenZero() {
+        // History's convention: 0 inline means every row is inline.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 7, inlineCount: 0, folderSize: 10), 7)
+    }
+
+    func testTopLevelSlotsNoOverflow() {
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 3, inlineCount: 5, folderSize: 10), 3)
+    }
+
+    func testTopLevelSlotsEmptySectionConsumesNothing() {
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 0, inlineCount: 5, folderSize: 10), 0)
+    }
+
+    func testTopLevelSlotsExactFolderBoundary() {
+        // 5 inline + exactly 10 remaining → 1 folder, not 2.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 15, inlineCount: 5, folderSize: 10), 6)
+    }
+}
+
+/// White-box tests that the menu builder assigns real single-key shortcuts to
+/// memory rows and continues the shared sequence past the history section
+/// (review #6). Key assignments ride on each item's `identifier` as
+/// "clipkey:<key>" (see `MenuKeyRouter.assign`).
+final class MemoryMenuKeyTests: XCTestCase {
+
+    private let keyPrefix = "clipkey:"
+    private var saved: [String: Any?] = [:]
+
+    @MainActor
+    private func withMenuDefaults(_ body: () -> Void) {
+        // Snapshot and restore the UserDefaults keys the builder reads, so the
+        // test never leaves the developer's real preferences changed.
+        let keys = [
+            "menuShortcutKeys", "maxHistorySize", "numberOfItemsInline",
+            "numberOfItemsInFolder", "maxMemorySize", "numberOfMemoryItemsInline",
+            "numberOfItemsPerMemoryFolder", "menuItemTitleMaxLength",
+            "showImagesInMenu", "showTooltips",
+        ]
+        let defaults = UserDefaults.standard
+        for key in keys { saved[key] = defaults.object(forKey: key) }
+        defer {
+            for key in keys {
+                if let value = saved[key], value != nil {
+                    defaults.set(value, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
+            }
+        }
+
+        Defaults[.menuShortcutKeys] = MenuShortcutKeys.default // 1234567890abc…
+        Defaults[.maxHistorySize] = 32
+        Defaults[.numberOfItemsInline] = 5
+        Defaults[.numberOfItemsInFolder] = 10
+        Defaults[.maxMemorySize] = 100
+        Defaults[.menuItemTitleMaxLength] = 40
+        Defaults[.showImagesInMenu] = false
+        Defaults[.showTooltips] = false
+        body()
+    }
+
+    private func items(_ count: Int) -> [ClipItem] {
+        (0..<count).map { ClipItem(stringValue: "clip \($0)") }
+    }
+
+    @MainActor
+    func testHistoryReturnsNextFreeKeyIndex() {
+        withMenuDefaults {
+            let menu = NSMenu()
+            let next = ClipMenuBuilder.addHistoryItems(
+                to: menu,
+                items: items(32),
+                target: NSObject(),
+                pasteAction: Selector(("noop:")),
+                memoryAction: Selector(("noop:")),
+                folderAction: Selector(("noop:"))
+            )
+            // 5 inline + 3 folders of 10 = 8.
+            XCTAssertEqual(next, 8)
+        }
+    }
+
+    @MainActor
+    func testMemoryInlineRowsContinueSequenceAfterHistory() {
+        withMenuDefaults {
+            Defaults[.numberOfMemoryItemsInline] = 2
+            Defaults[.numberOfItemsPerMemoryFolder] = 40
+
+            let menu = NSMenu()
+            // History consumes slots 0–7, so memory starts at index 8 → "9","0".
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: items(5),
+                startingKeyIndex: 8,
+                target: NSObject(),
+                pasteAction: Selector(("noop:")),
+                promoteAction: Selector(("noop:")),
+                folderAction: Selector(("noop:"))
+            )
+
+            // items[0] is the "Memory" header; inline base rows follow, each
+            // trailed by its ⌥ alternate (which carries no key of its own).
+            XCTAssertEqual(menu.items[1].identifier?.rawValue, keyPrefix + "9")
+            XCTAssertEqual(menu.items[3].identifier?.rawValue, keyPrefix + "0")
+        }
+    }
+
+    @MainActor
+    func testMemoryZeroInlineCollapsesToSubmenu() {
+        withMenuDefaults {
+            Defaults[.numberOfMemoryItemsInline] = 0
+            Defaults[.numberOfItemsPerMemoryFolder] = 40
+
+            let menu = NSMenu()
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: items(5),
+                startingKeyIndex: 8,
+                target: NSObject(),
+                pasteAction: Selector(("noop:")),
+                promoteAction: Selector(("noop:")),
+                folderAction: Selector(("noop:"))
+            )
+
+            // header, then the single Memory ▸ submenu row (no inline rows).
+            let submenuRow = menu.items.first { $0.submenu != nil }
+            XCTAssertNotNil(submenuRow, "0 inline should collapse to one Memory submenu")
+            // Rows inside restart the sequence at the head: first row is "1".
+            XCTAssertEqual(submenuRow?.submenu?.items.first?.identifier?.rawValue, keyPrefix + "1")
+        }
     }
 }
 
