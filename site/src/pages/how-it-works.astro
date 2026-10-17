@@ -1,0 +1,141 @@
+---
+import { Image } from "astro:assets";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import historySearchScreenshot from "../images/screenshots/history-search.png";
+import snippetEditorScreenshot from "../images/screenshots/snippet-editor.png";
+
+const base = import.meta.env.BASE_URL;
+
+const tiers = [
+  ["history", "30 days (configurable)", "encrypted on disk", "copying anything"],
+  ["memory", "never expires", "encrypted on disk", "hold ⌥ on a history row"],
+  ["snippets", "forever", "plaintext (you curate it)", "the editor, or promote from memory"],
+];
+---
+
+<BaseLayout
+  title="How it works — Clipy Secure"
+  description="The three tiers of Clipy Secure — History, Memory, and Snippets — what each keeps, for how long, and where, plus the single-keystroke paste flow."
+  structuredData={false}
+>
+  <section class="page-intro" aria-labelledby="hiw-title">
+    <h1 id="hiw-title">How Clipy Secure works</h1>
+    <p class="lede">
+      Everything you copy lands in <strong>History</strong>, encrypted and expiring on its own. The clips worth keeping
+      move up a two-rung ladder — into <strong>Memory</strong>, then into <strong>Snippets</strong> — one keystroke at a
+      time. Pasting any of them is a single key.
+    </p>
+  </section>
+
+  <section class="document-section" id="tiers" aria-labelledby="tiers-title">
+    <div class="section-heading">
+      <h2 id="tiers-title">the three tiers</h2>
+      <hr />
+    </div>
+    <div class="compare-wrap">
+      <table class="compare-table">
+        <caption class="sr-only">What each tier keeps, for how long, where it lives, and how a clip gets there</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tier</th>
+            <th scope="col">Lifetime</th>
+            <th scope="col">Stored as</th>
+            <th scope="col">How a clip gets there</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tiers.map(([tier, lifetime, stored, how]) => (
+            <tr>
+              <th scope="row">{tier}</th>
+              <td>{lifetime}</td>
+              <td>{stored}</td>
+              <td>{how}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="document-section prose" id="history" aria-labelledby="history-title">
+    <div class="section-heading">
+      <h2 id="history-title">history</h2>
+      <hr />
+    </div>
+    <p>
+      Every copy is captured by an actor that polls the pasteboard a couple of times a second, and stored as an
+      encrypted row — text, RTF, PDF, images, file paths, and URLs all included. By default Clipy Secure keeps up to 32
+      items in the menu and deletes anything older than 30 days; both numbers are adjustable in Preferences. Clips leave
+      History when they expire, when they fall past the size cap, or when you use <strong>Clear All</strong>. Apps you
+      exclude are never recorded, and content marked <em>concealed</em> by a password manager is skipped automatically.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="memory" aria-labelledby="memory-title">
+    <div class="section-heading">
+      <h2 id="memory-title">memory</h2>
+      <hr />
+    </div>
+    <p>
+      Memory is the parking lot between "I just copied it" and "I filed it somewhere." Open the clip menu, hold
+      <kbd>⌥</kbd>, and the history row shows a brain icon — release on it and the clip is saved to Memory, where it
+      stops expiring no matter how much you copy afterwards. It is still stored encrypted on disk; the only thing that
+      changes is that history cleanup leaves it alone. Remembered clips get their own section in the menu, keyed
+      <code>m1</code>, <code>m2</code>, and so on. It is meant for today's working set — the command you keep retyping,
+      the address you will need twice more — not as a permanent archive.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="snippets" aria-labelledby="snippets-title">
+    <div class="section-heading">
+      <h2 id="snippets-title">snippets</h2>
+      <hr />
+    </div>
+    <p>
+      Snippets are the things you reach for again and again: boilerplate replies, shell one-liners, addresses. They live
+      in folders, are a single keystroke from any app, and import and export as plaintext XML. Create them in the
+      snippet editor, or promote a remembered clip straight into a snippet folder: hold <kbd>⌥</kbd> on a memory row and
+      release on the document icon. Because snippets are content you write and curate yourself, they are stored in plain
+      text by design — so don't keep secrets in them.
+    </p>
+    <figure class="screenshot-document screenshot-document--secondary">
+      <Image
+        class="screenshot-image"
+        src={snippetEditorScreenshot}
+        alt="Clipy Secure snippet editor with a folder sidebar and a snippet being edited"
+        loading="lazy"
+      />
+      <figcaption>figure / snippet editor / <span aria-hidden="true">capture pending</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="document-section prose" id="paste" aria-labelledby="paste-title">
+    <div class="section-heading">
+      <h2 id="paste-title">single-key paste</h2>
+      <hr />
+    </div>
+    <p>
+      Press <kbd>⇧⌘V</kbd> and the clip menu opens at the pointer. Every row carries a key: the most recent clips are
+      <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>… Tap the key and that clip is written to the pasteboard and pasted into the
+      front app immediately — no Return, no arrow keys. Older clips collapse into numbered folders: press the folder's
+      digit to open it, then a digit inside to paste. The key sequence is configurable in Preferences (digits by
+      default; you can switch to letters or your own order).
+    </p>
+    <p>
+      Paste works by writing the clip to the system pasteboard and posting a synthetic <kbd>⌘V</kbd> through CGEvent,
+      which is why Clipy Secure needs Accessibility permission. Need to look something up rather than grab a recent clip?
+      Press <kbd>⌃⌘V</kbd> for the history search panel: type to filter across your whole encrypted history, and click a
+      result to paste it.
+    </p>
+    <figure class="screenshot-document screenshot-document--secondary">
+      <Image
+        class="screenshot-image"
+        src={historySearchScreenshot}
+        alt="Clipy Secure history search panel with a search field and a list of matching clips"
+        loading="lazy"
+      />
+      <figcaption>figure / history search / <span aria-hidden="true">⌃⌘V · capture pending</span></figcaption>
+    </figure>
+    <p class="section-link"><a href={`${base}install/`}>install Clipy Secure <span aria-hidden="true">→</span></a></p>
+  </section>
+</BaseLayout>

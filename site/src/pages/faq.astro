@@ -1,0 +1,93 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+
+const faqs = [
+  {
+    q: "Why isn't it notarized?",
+    a: [
+      "Apple notarization requires a paid Apple Developer ID, which this project does not have. Instead, Clipy Secure is signed with a long-lived certificate the project controls. That is enough to keep the Accessibility permission stable across updates, but it is not an Apple notarization and should not be mistaken for one.",
+      "You can verify a download yourself: check the published sha256, and confirm the certificate leaf hash with <code>codesign -d -r-</code>. The install page walks through both.",
+    ],
+    link: { href: `${base}install/#verify`, text: "how to verify a download" },
+  },
+  {
+    q: "Why no Apple Developer ID?",
+    a: [
+      "It is a personal project, and a Developer ID is a yearly paid membership aimed at commercial distribution. A self-signed certificate costs nothing, keeps the whole trust chain on your own machine, and — because macOS binds the Accessibility grant to the certificate's leaf hash — keeps that grant stable from one release to the next.",
+    ],
+  },
+  {
+    q: "Why isn't it sandboxed?",
+    a: [
+      "Auto-paste works by posting a synthetic ⌘V into whatever app is in front, through the Accessibility API. That cross-application control is exactly what App Sandbox exists to prevent — a sandboxed build never even appears in System Settings → Privacy &amp; Security → Accessibility, so auto-paste cannot work. This was verified on recent macOS from both <code>/tmp</code> and <code>/Applications</code>.",
+      "So Clipy Secure's privacy comes from encryption, not from the sandbox: every clip is encrypted at rest, and the app has no network access to misuse in the first place.",
+    ],
+  },
+  {
+    q: "What is the Accessibility permission for?",
+    a: [
+      "One thing only: to paste for you. After writing a clip to the pasteboard, Clipy Secure posts a synthetic ⌘V keystroke, and macOS requires Accessibility permission to post keystrokes into other apps. It is not used to read other apps, watch your screen, or capture anything — and the app has no way to send it anywhere even if it did.",
+    ],
+  },
+  {
+    q: "Is there an automatic update check?",
+    a: [
+      "No. Clipy Secure makes no network connections at all — no update check, no telemetry, no sync. If you installed with Homebrew, run <code>brew upgrade</code> for new versions; otherwise download the latest release and replace the app.",
+    ],
+  },
+  {
+    q: "Where does my data live?",
+    a: [
+      "Your clipboard history is an encrypted SQLite database under <code>~/Library/Application Support/com.clipysecure.app</code>. Settings are in <code>~/Library/Preferences/com.clipysecure.app.plist</code>. The AES-GCM encryption key is kept in your login Keychain as an item named <strong>ClipySecure</strong> — so even the database file on disk is unreadable without it.",
+      "Snippets are the one exception: they are stored in plain text by design, because they are content you curate and export yourself. Don't keep secrets in snippets.",
+    ],
+  },
+  {
+    q: "How do I wipe everything?",
+    a: [
+      "Inside the app, <strong>Clear All History</strong> (in the Privacy preferences, or the clip menu) empties history and memory. To remove the app and all of its data:",
+    ],
+    code: "brew uninstall --cask --zap clipy-secure",
+    aAfter: [
+      "That trashes the data and preferences folders above. The encryption key stays in your Keychain — delete the <strong>ClipySecure</strong> item in Keychain Access to remove it too. If you installed from a zip or from source, drag the app to the Trash and remove those two paths plus the Keychain item by hand.",
+    ],
+  },
+];
+---
+
+<BaseLayout
+  title="FAQ — Clipy Secure"
+  description="Why Clipy Secure isn't notarized or sandboxed, what the Accessibility permission is for, where your data lives, and how to wipe it."
+  structuredData={false}
+>
+  <section class="page-intro" aria-labelledby="faq-title">
+    <h1 id="faq-title">Questions, answered honestly</h1>
+    <p class="lede">
+      Clipy Secure makes some deliberate, unusual trade-offs. Here is the reasoning, without the marketing gloss.
+    </p>
+  </section>
+
+  <section class="document-section" aria-labelledby="faq-list-title">
+    <div class="section-heading">
+      <h2 id="faq-list-title">faq</h2>
+      <hr />
+    </div>
+    {faqs.map((item) => (
+      <div class="faq-item">
+        <h3>{item.q}</h3>
+        {item.a.map((paragraph) => (
+          <p set:html={paragraph} />
+        ))}
+        {item.code && <pre class="command-block"><code>{item.code}</code></pre>}
+        {item.aAfter?.map((paragraph) => (
+          <p set:html={paragraph} />
+        ))}
+        {item.link && (
+          <p class="section-link"><a href={item.link.href}>{item.link.text} <span aria-hidden="true">→</span></a></p>
+        )}
+      </div>
+    ))}
+  </section>
+</BaseLayout>

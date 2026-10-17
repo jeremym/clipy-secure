@@ -1,26 +1,84 @@
 # ClipySecure
 
-## Jeremy's full refactor of Clipy
-
 A privacy-first clipboard manager for macOS. Everything you copy is stored encrypted on disk, nothing ever leaves your machine, and the searchable index lives only in memory.
 
 **Website:** [jeremym.github.io/clipy-secure](https://jeremym.github.io/clipy-secure/)
 
-A full rewrite of [Clipy](https://github.com/Clipy/Clipy) in Swift 6, rebuilt around the idea that a clipboard manager sees your passwords, tokens, and private messages — so it should be the last app on your Mac storing them in plain text.
-
-Mostly it exists because I wanted a Clipy with the features I actually use. It's here in case it's useful to anyone else.
+An independent, ground-up rewrite of [Clipy](https://github.com/Clipy/Clipy) in Swift 6, rebuilt around one idea: a clipboard manager sees your passwords, tokens, and private messages — so it should be the last app on your Mac storing them in plain text.
 
 ![CI](https://github.com/jeremym/clipy-secure/actions/workflows/ci.yml/badge.svg)
 
+## Installing
+
+ClipySecure is signed with its own certificate rather than an Apple Developer ID, and is **not notarized** (see [Verifying a release](#verifying-a-release) and [Why it isn't notarized](#why-it-isnt-notarized)). Pick whichever path you trust.
+
+### Homebrew (recommended)
+
+```bash
+brew install --cask jeremym/tap/clipy-secure
+open -a ClipySecure
+```
+
+The fully-qualified cask name trusts the tap automatically — there is no separate `brew tap` step. The cask removes the quarantine flag on install, so the app launches without a Gatekeeper prompt, and `brew upgrade` keeps the Accessibility permission across updates. There is no in-app updater; updates come through `brew upgrade` only.
+
+### Zip from GitHub Releases
+
+1. Download `ClipySecure-<version>.zip` from the [latest release](https://github.com/jeremym/clipy-secure/releases/latest) and unzip it.
+2. Move `ClipySecure.app` to `/Applications`.
+3. Because the app is not notarized, the first launch is blocked. Either:
+   - Open **System Settings → Privacy & Security**, scroll to *"ClipySecure" was blocked*, click **Open Anyway**, then confirm; or
+   - remove the quarantine flag from the Terminal:
+     ```bash
+     xattr -d com.apple.quarantine /Applications/ClipySecure.app
+     ```
+
+You only do this once per downloaded copy.
+
+### Build from source
+
+```bash
+git clone https://github.com/jeremym/clipy-secure.git
+cd clipy-secure
+./scripts/create-signing-cert.sh   # once per machine
+./scripts/install-local.sh         # build, sign, install to /Applications, launch
+```
+
+`create-signing-cert.sh` generates a self-signed code-signing certificate in your login keychain. It needs no Apple account and no developer membership — it is created and trusted entirely on your own machine. `install-local.sh` then quits any running copy, builds a signed Release, checks the signature actually took, installs to `/Applications`, and launches it. To rebuild after pulling changes, run `install-local.sh` again.
+
+**Why the certificate step exists.** A plain `xcodebuild` signs ad-hoc, producing a designated requirement pinned to the binary's hash. macOS binds the Accessibility grant to that requirement, so **every rebuild looks like a brand new app**: the old grant goes stale, toggling it in System Settings does nothing, and auto-paste breaks. A certificate — even a self-signed one — makes the requirement identity-based, and the grant survives every rebuild. If a stale grant ever does get stuck, clear it once and re-grant:
+
+```bash
+tccutil reset Accessibility com.clipysecure.app
+```
+
+### Uninstalling
+
+If you installed with Homebrew:
+
+```bash
+brew uninstall --cask clipy-secure          # remove the app
+brew uninstall --cask --zap clipy-secure    # also delete history, memory, and settings
+```
+
+`--zap` trashes `~/Library/Application Support/com.clipysecure.app` and `~/Library/Preferences/com.clipysecure.app.plist`. The AES-GCM key stays in your login Keychain — delete the `ClipySecure` item in Keychain Access to remove it too. Installed from a zip or from source? Drag `ClipySecure.app` to the Trash and remove those two paths plus the Keychain item by hand.
+
+### Requirements
+
+- macOS 14 Sonoma or later
+- Accessibility permission, granted on first run, for auto-paste
+- Xcode 16 or later, only if building from source
+
 ## What it does
 
-- **Clipboard history** in the menu bar, up to 32 items by default, covering text, RTF, RTFD, PDF, images, file paths, and URLs.
-- **Single-keystroke paste.** Open the menu and press `a` or `b` to paste the two most recent clips, or a digit to open a folder and another digit to paste from it. No Return, no arrow keys.
+- **Clipboard history** in the menu bar — up to 32 items by default, covering text, RTF, RTFD, PDF, images, file paths, and URLs.
+- **Single-keystroke paste.** Open the menu and press the digit shown beside a clip to paste it instantly. The most recent clips are `1`, `2`, `3`…; older ones group into numbered folders you open with a digit and paste from with another. No Return, no arrow keys. The key set is configurable (digits by default).
 - **Searchable history panel** with live full-text search.
 - **Snippets** — reusable text organised in folders, importable and exportable as XML.
-- **Memory** — pin clips you want kept indefinitely, safe from history expiry, and promote any of them into a snippet folder.
+- **Memory** — a parking lot between history and snippets. Hold ⌥ over a history row to keep that clip indefinitely, safe from history expiry; hold ⌥ over a remembered clip to promote it into a snippet folder.
 - **App exclusion** — name the apps whose clipboard content should never be recorded, such as a password manager.
 - Respects the system *concealed* pasteboard flag, so well-behaved password managers are ignored automatically.
+
+The three tiers form a ladder: **History** (everything you copy, expiring on its own) → **Memory** (clips you choose to keep) → **Snippets** (curated, reusable text). [How it works →](https://jeremym.github.io/clipy-secure/how-it-works/)
 
 ## How the privacy works
 
@@ -32,36 +90,28 @@ Mostly it exists because I wanted a Clipy with the features I actually use. It's
 
 **One honest exception:** snippets are stored in plain text. They are content you wrote and curate yourself, and they export as plaintext XML by design. Don't keep secrets in them.
 
-## Requirements
+## Verifying a release
 
-- macOS 14 Sonoma or later
-- Xcode 16 or later to build
-- Accessibility permission, granted on first run, for auto-paste
-
-## Installing
-
-ClipySecure is built from source. Three commands:
+Each release ships `ClipySecure-<version>.zip` alongside a `.sha256` file. Confirm the download:
 
 ```bash
-git clone https://github.com/jeremym/clipy-secure.git
-cd clipy-secure
-./scripts/create-signing-cert.sh   # once per machine
-./scripts/install-local.sh         # build, sign, install to /Applications, launch
+shasum -a 256 ClipySecure-1.0.0.zip
+# compare against the published .sha256, e.g.:
+# 0e47c7c99732c8541eb2eb61e3f6307f4cbcfda4a5a1b404c6c4118912adca9f
 ```
 
-`create-signing-cert.sh` generates a self-signed code-signing certificate in your login keychain. It needs no Apple account and no developer membership — it is created and trusted entirely on your own machine.
-
-`install-local.sh` then quits any running copy, builds Release signed with that certificate, checks the signature actually took, installs to `/Applications`, and launches it. On first run macOS asks for Accessibility permission; grant it, or auto-paste cannot work.
-
-**Why the certificate step exists.** A plain `xcodebuild` signs ad-hoc, producing a designated requirement pinned to the binary's hash. macOS binds the Accessibility grant to that requirement, so **every rebuild looks like a brand new app**: the old grant goes stale, toggling it in System Settings does nothing, and auto-paste breaks. A certificate — even a self-signed one — makes the requirement identity-based, and the grant survives every rebuild.
-
-If a stale grant ever does get stuck, clear it once and re-grant:
+Confirm the signature on the installed app. Because it is signed with the project's own certificate, the designated requirement is identity-based and stable across releases:
 
 ```bash
-tccutil reset Accessibility com.clipysecure.app
+codesign -d -r- /Applications/ClipySecure.app
+# designated => identifier "com.clipysecure.app" and certificate leaf = H"a3ed032a6666d06c91d1c35147ad0e44093c1b5e"
 ```
 
-To rebuild after pulling changes, just run `install-local.sh` again.
+If the output pins a `cdhash` instead, you have an ad-hoc build, not a release.
+
+## Why it isn't notarized
+
+Notarization requires a paid Apple Developer ID, which this project does not have. The app is instead signed with a long-lived self-signed certificate. That is enough for macOS to keep the Accessibility grant stable across updates (the grant is bound to the certificate's leaf hash, a value you can check yourself above), but it is **not** an Apple notarization and should not be mistaken for one. Gatekeeper will warn on a fresh download; the Homebrew cask clears the quarantine flag for you, and the zip path documents the one-time "Open Anyway" step above. Integrity rests on the published sha256 and the certificate leaf hash, both verifiable with the commands above.
 
 ## Default shortcuts
 
@@ -70,7 +120,7 @@ To rebuild after pulling changes, just run `install-local.sh` again.
 | ⇧⌘V | Clip menu at the pointer — history, snippets, and memory |
 | ⌃⌘V | Clipboard history search |
 
-Both are rebindable in Preferences.
+Both are rebindable in Preferences, along with an optional "Clear History" shortcut.
 
 ## Building and testing
 
@@ -87,10 +137,6 @@ Swift 6 with strict concurrency. An AppKit shell — status item, windows, menus
 
 Dependencies are Swift Package Manager only: GRDB.swift, KeyboardShortcuts, Defaults, and LaunchAtLogin-Modern.
 
-## Status
-
-A personal tool, feature-complete and in daily use — realistically I am its only user. It has not had external review and there is no release process, so treat it as working software you compile yourself rather than as a product.
-
 ## License
 
-MIT — see [LICENSE](LICENSE). Upstream [Clipy](https://github.com/Clipy/Clipy), which this rewrite follows, is MIT licensed too.
+MIT — see [LICENSE](LICENSE). Upstream [Clipy](https://github.com/Clipy/Clipy), which this rewrite follows in spirit, is MIT licensed too.

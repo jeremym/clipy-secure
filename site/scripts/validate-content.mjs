@@ -127,7 +127,59 @@ function escapeWorkflowMessage(value) {
   return value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 }
 
-const violations = [];
+// Commands and the certificate leaf hash that MUST read identically in README.md
+// and on the public site, so the two can never drift out of sync. Each string has
+// to appear verbatim in README.md and in at least one site page.
+const syncedStrings = [
+  "brew install --cask jeremym/tap/clipy-secure",
+  "open -a ClipySecure",
+  "xattr -d com.apple.quarantine /Applications/ClipySecure.app",
+  "codesign -d -r- /Applications/ClipySecure.app",
+  "a3ed032a6666d06c91d1c35147ad0e44093c1b5e",
+  "brew uninstall --cask",
+];
+
+function readIfExists(relativePath) {
+  const absolutePath = resolve(repositoryRoot, relativePath);
+  return existsSync(absolutePath) ? readFileSync(absolutePath, "utf8") : "";
+}
+
+function checkSyncedCommands() {
+  const syncViolations = [];
+  const readme = readIfExists("README.md");
+
+  const pageFiles = execFileSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "site/src/pages"],
+    { cwd: repositoryRoot, encoding: "utf8" },
+  )
+    .split("\0")
+    .filter((path) => path.endsWith(".astro"));
+  const siteContent = pageFiles.map((path) => readIfExists(path)).join("\n");
+
+  for (const needle of syncedStrings) {
+    if (!readme.includes(needle)) {
+      syncViolations.push({
+        relativePath: "README.md",
+        line: 1,
+        column: 1,
+        description: `Install command out of sync: "${needle}" is on the site but missing from README.md.`,
+      });
+    }
+    if (!siteContent.includes(needle)) {
+      syncViolations.push({
+        relativePath: "site/src/pages",
+        line: 1,
+        column: 1,
+        description: `Install command out of sync: "${needle}" is in README.md but missing from the site pages.`,
+      });
+    }
+  }
+
+  return syncViolations;
+}
+
+const violations = [...checkSyncedCommands()];
 
 for (const relativePath of listCandidateFiles()) {
   const absolutePath = resolve(repositoryRoot, relativePath);

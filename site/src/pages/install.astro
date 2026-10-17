@@ -1,0 +1,145 @@
+---
+import { Image } from "astro:assets";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import gatekeeperBlockedScreenshot from "../images/screenshots/gatekeeper-blocked.png";
+import openAnywayScreenshot from "../images/screenshots/open-anyway.png";
+
+const base = import.meta.env.BASE_URL;
+const repositoryUrl = "https://github.com/jeremym/clipy-secure";
+const releasesUrl = `${repositoryUrl}/releases/latest`;
+---
+
+<BaseLayout
+  title="Install — Clipy Secure"
+  description="Install Clipy Secure via Homebrew, a direct zip download, or by building from source, and verify the download yourself."
+  structuredData={false}
+>
+  <section class="page-intro" aria-labelledby="install-title">
+    <h1 id="install-title">Install Clipy Secure</h1>
+    <p class="lede">
+      Clipy Secure is signed with the project's own certificate rather than an Apple Developer ID, and is not notarized.
+      Pick whichever path you trust. It needs macOS 14 Sonoma or later, and asks for Accessibility permission on first
+      run so it can paste for you.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="homebrew" aria-labelledby="homebrew-title">
+    <div class="section-heading">
+      <h2 id="homebrew-title">homebrew — recommended</h2>
+      <hr />
+    </div>
+    <pre class="command-block"><code>brew install --cask jeremym/tap/clipy-secure
+open -a ClipySecure</code></pre>
+    <p>
+      The fully-qualified cask name trusts the tap automatically — there is no separate <code>brew tap</code> step. The
+      cask removes the quarantine flag on install, so the app launches without a Gatekeeper prompt. Updates come through
+      <code>brew upgrade</code>; there is no in-app updater, and the Accessibility permission is preserved across
+      upgrades because the signing identity does not change.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="zip" aria-labelledby="zip-title">
+    <div class="section-heading">
+      <h2 id="zip-title">direct download</h2>
+      <hr />
+    </div>
+    <p>
+      If you would rather not use Homebrew, download the zip from the
+      <a href={releasesUrl}>latest release <span aria-hidden="true">↗</span></a>. Because the app is not notarized,
+      macOS quarantines a fresh download and Gatekeeper blocks the first launch. You clear that once, either through
+      System Settings or with a single Terminal command.
+    </p>
+    <ol class="steps">
+      <li>Download <code>ClipySecure-&lt;version&gt;.zip</code>, unzip it, and move <code>ClipySecure.app</code> to <code>/Applications</code>.</li>
+      <li>Double-click the app. macOS refuses to open it, because it was not verified by Apple.</li>
+      <li>Open <strong>System Settings → Privacy &amp; Security</strong>, scroll to the <em>"ClipySecure" was blocked</em> notice, and click <strong>Open Anyway</strong>. Authenticate, then confirm <strong>Open</strong> in the dialog that follows.</li>
+    </ol>
+
+    <figure class="screenshot-document screenshot-document--secondary">
+      <Image
+        class="screenshot-image"
+        src={gatekeeperBlockedScreenshot}
+        alt="macOS Gatekeeper dialog reporting that ClipySecure could not be verified and was not opened"
+        loading="lazy"
+      />
+      <figcaption>figure / first launch is blocked / <span aria-hidden="true">capture pending</span></figcaption>
+    </figure>
+    <figure class="screenshot-document screenshot-document--secondary">
+      <Image
+        class="screenshot-image"
+        src={openAnywayScreenshot}
+        alt="System Settings Privacy and Security pane with the Open Anyway button for ClipySecure"
+        loading="lazy"
+      />
+      <figcaption>figure / System Settings → Privacy &amp; Security → Open Anyway / <span aria-hidden="true">capture pending</span></figcaption>
+    </figure>
+
+    <h3 class="subhead">Terminal alternative</h3>
+    <p>Remove the quarantine flag directly, with no trip through System Settings:</p>
+    <pre class="command-block"><code>xattr -d com.apple.quarantine /Applications/ClipySecure.app</code></pre>
+    <p>Either way, you only do this once per downloaded copy.</p>
+  </section>
+
+  <section class="document-section prose" id="source" aria-labelledby="source-title">
+    <div class="section-heading">
+      <h2 id="source-title">build from source</h2>
+      <hr />
+    </div>
+    <p>The "trust nothing" path. Needs Xcode 16 or later.</p>
+    <pre class="command-block"><code>git clone https://github.com/jeremym/clipy-secure.git
+cd clipy-secure
+./scripts/create-signing-cert.sh   # once per machine
+./scripts/install-local.sh         # build, sign, install, launch</code></pre>
+    <p>
+      <code>create-signing-cert.sh</code> generates a self-signed certificate in your login keychain — no Apple account
+      needed. A certificate, even a self-signed one, matters here: a plain ad-hoc build pins the Accessibility grant to
+      the binary's hash, so every rebuild looks like a new app and auto-paste breaks. Signing with a certificate makes
+      the grant survive rebuilds. To update later, pull and run <code>install-local.sh</code> again.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="verify" aria-labelledby="verify-title">
+    <div class="section-heading">
+      <h2 id="verify-title">verify a download</h2>
+      <hr />
+    </div>
+    <p>Every release ships the zip alongside a <code>.sha256</code> file. Confirm the bytes you downloaded:</p>
+    <pre class="command-block"><code>shasum -a 256 ClipySecure-1.0.0.zip
+# compare against the published .sha256</code></pre>
+    <p>Then confirm the signature on the installed app. The designated requirement is identity-based and stable across releases:</p>
+    <pre class="command-block"><code>codesign -d -r- /Applications/ClipySecure.app
+# designated =&gt; identifier "com.clipysecure.app" and certificate leaf = H"a3ed032a6666d06c91d1c35147ad0e44093c1b5e"</code></pre>
+    <p>
+      That leaf hash is the project's certificate. If the output pins a <code>cdhash</code> instead of a certificate
+      leaf, you have an ad-hoc build rather than a release. This is the honest substitute for Apple notarization:
+      integrity rests on the published hash and the certificate you can check yourself.
+    </p>
+  </section>
+
+  <section class="document-section prose" id="uninstall" aria-labelledby="uninstall-title">
+    <div class="section-heading">
+      <h2 id="uninstall-title">uninstall</h2>
+      <hr />
+    </div>
+    <p>Homebrew removes the app and quits it:</p>
+    <pre class="command-block"><code>brew uninstall --cask clipy-secure</code></pre>
+    <p>To also delete the app's stored data, add <code>--zap</code>, which trashes:</p>
+    <pre class="command-block"><code>brew uninstall --cask --zap clipy-secure
+# ~/Library/Application Support/com.clipysecure.app
+# ~/Library/Preferences/com.clipysecure.app.plist</code></pre>
+    <p>
+      The encryption key stays in your login Keychain after uninstall. If you want it gone, delete the
+      <code>ClipySecure</code> item in Keychain Access. Installed from source or a zip instead? Drag
+      <code>ClipySecure.app</code> to the Trash and remove the same two paths by hand.
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .subhead {
+    margin: 1.6rem 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-small);
+    font-weight: 500;
+  }
+</style>
