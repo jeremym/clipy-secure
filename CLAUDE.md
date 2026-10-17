@@ -106,6 +106,22 @@ Distribution needs a paid Apple Developer ID plus notarization.
 - Do not centre a window before assigning `contentViewController` — that assignment resizes to the hosting controller's fitting size, and SwiftUI `maxWidth: .infinity` makes that screen-wide; the shrink back is top-left anchored and pins the window under the menu bar. Use `NSWindow.setCenteredContent(_:size:)`
 - Do not block the main thread in `applicationWillTerminate` — `AppDelegate` is `@MainActor`, so `Task {}` inherits main-actor isolation and cannot run while the main thread waits, which deadlocks quit
 
+## When you ship a feature, update the docs
+
+User-facing behavior lives in several places that drift apart silently. Any time
+you add or change a feature, re-check all of these in the same change:
+
+- **README.md** — feature list and the Shortcuts section.
+- **Site** (`site/src/pages/*`, npm + `package-lock.json`): `/compare/` (feature rows),
+  `/how-it-works/`, `/faq/`, and any `⌥`/right-click descriptions.
+- **Onboarding** (`ClipySecure/Views/Onboarding/OnboardingView.swift`) if the UX changed.
+- **Preferences copy** — footers that explain the feature.
+- Keep `site/scripts/validate-content.mjs` passing: the install command and the
+  certificate leaf hash must read **verbatim** in README.md and on the site.
+
+Only advertise a feature once it has actually shipped — docs must not describe
+unshipped behavior.
+
 ## Project Status
 
 All features complete (Phases 0-8). Code review complete — all P0-P3 fixes plus additional code quality work (import deduplication, StatusBarController breakup, deprecated API cleanup) applied.

@@ -13,6 +13,7 @@ struct OnboardingView: View {
                 case 0: welcomePage
                 case 1: permissionsPage
                 case 2: clipboardAccessPage
+                case 3: ladderPage
                 default: readyPage
                 }
             }
@@ -31,7 +32,7 @@ struct OnboardingView: View {
                 Spacer()
 
                 HStack(spacing: 6) {
-                    ForEach(0..<4, id: \.self) { index in
+                    ForEach(0..<5, id: \.self) { index in
                         Circle()
                             .fill(index == currentPage ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
@@ -40,7 +41,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                if currentPage < 3 {
+                if currentPage < 4 {
                     Button(String(localized: "Next")) {
                         withAnimation { currentPage += 1 }
                     }
@@ -123,6 +124,45 @@ struct OnboardingView: View {
                 .frame(maxWidth: 460)
         }
         .padding(40)
+    }
+
+    private var ladderPage: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.up.and.down.text.horizontal")
+                .font(.system(size: 48))
+                .foregroundStyle(.purple)
+
+            Text("Give Every Clip a Next Step")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("ClipySecure sorts what you copy into a simple ladder. Hold \u{2325} on any row in the menu to move a clip up it.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 480)
+
+            VStack(alignment: .leading, spacing: 10) {
+                ladderRow("clock", "History", "Everything you copy, encrypted. Expires on its own.")
+                ladderRow("brain", "Memory", "Hold \u{2325}, press m: the clip stops expiring. A short-term parking lot, not an archive.")
+                ladderRow("doc.on.clipboard", "Snippets", "Reusable text in folders, kept forever.")
+                ladderRow("book.closed", "Obsidian", "Hold \u{2325}, press o: the clip lands in your vault as a note.")
+            }
+            .frame(maxWidth: 480, alignment: .leading)
+        }
+        .padding(40)
+    }
+
+    private func ladderRow(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 18))
+                .foregroundStyle(.tint)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).fontWeight(.semibold)
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var readyPage: some View {
