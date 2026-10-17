@@ -1,8 +1,5 @@
 ---
-import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import gatekeeperBlockedScreenshot from "../images/screenshots/gatekeeper-blocked.png";
-import openAnywayScreenshot from "../images/screenshots/open-anyway.png";
 
 const base = import.meta.env.BASE_URL;
 const repositoryUrl = "https://github.com/jeremym/clipy-secure";
@@ -52,27 +49,8 @@ open -a ClipySecure</code></pre>
     <ol class="steps">
       <li>Download <code>ClipySecure-&lt;version&gt;.zip</code>, unzip it, and move <code>ClipySecure.app</code> to <code>/Applications</code>.</li>
       <li>Double-click the app. macOS refuses to open it, because it was not verified by Apple.</li>
-      <li>Open <strong>System Settings → Privacy &amp; Security</strong>, scroll to the <em>"ClipySecure" was blocked</em> notice, and click <strong>Open Anyway</strong>. Authenticate, then confirm <strong>Open</strong> in the dialog that follows.</li>
+      <li>Open <strong>System Settings → Privacy &amp; Security</strong>, scroll to the <em>"ClipySecure" was blocked</em> notice, and click <strong>Open Anyway</strong>. Authenticate, then confirm <strong>Open</strong> in the dialog that follows. (On macOS 15 Sequoia and later, right-click → Open no longer bypasses this — the System Settings step is the way.)</li>
     </ol>
-
-    <figure class="screenshot-document screenshot-document--secondary">
-      <Image
-        class="screenshot-image"
-        src={gatekeeperBlockedScreenshot}
-        alt="macOS Gatekeeper dialog reporting that ClipySecure could not be verified and was not opened"
-        loading="lazy"
-      />
-      <figcaption>figure / first launch is blocked / <span aria-hidden="true">capture pending</span></figcaption>
-    </figure>
-    <figure class="screenshot-document screenshot-document--secondary">
-      <Image
-        class="screenshot-image"
-        src={openAnywayScreenshot}
-        alt="System Settings Privacy and Security pane with the Open Anyway button for ClipySecure"
-        loading="lazy"
-      />
-      <figcaption>figure / System Settings → Privacy &amp; Security → Open Anyway / <span aria-hidden="true">capture pending</span></figcaption>
-    </figure>
 
     <h3 class="subhead">Terminal alternative</h3>
     <p>Remove the quarantine flag directly, with no trip through System Settings:</p>
