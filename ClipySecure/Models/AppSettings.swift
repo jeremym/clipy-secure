@@ -20,6 +20,8 @@ extension Defaults.Keys {
     static let storeTypes = Key<Set<String>>("storeTypes", default: Set(ClipContentType.allCases.map(\.rawValue)))
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
+    // First-run marker: example snippets are seeded exactly once, never re-seeded.
+    static let hasSeededExampleSnippets = Key<Bool>("hasSeededExampleSnippets", default: false)
     static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
     static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
     // 0 = never expire. When > 0, memory items older than this many days are

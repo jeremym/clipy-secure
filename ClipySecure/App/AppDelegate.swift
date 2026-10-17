@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let dbService = try DatabaseService()
             databaseService = dbService
 
+            // First-run only: drop a few example snippets in. No-op afterward.
+            SeedService.seedExampleSnippetsIfNeeded(into: dbService)
+
             let cleanup = DataCleanupService(dbQueue: dbService.dbQueue)
             dataCleanupService = cleanup
 

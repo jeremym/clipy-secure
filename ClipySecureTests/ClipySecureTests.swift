@@ -1,4 +1,5 @@
 import AppKit
+import Defaults
 import XCTest
 @testable import ClipySecure
 import GRDB
@@ -514,6 +515,64 @@ final class MemoryCleanupTests: XCTestCase {
 
         XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 0)
         XCTAssertTrue(try memoryItems(db).map(\.id).contains(pinnedOld))
+    }
+}
+
+final class SeedServiceTests: XCTestCase {
+
+    private func makeService() throws -> DatabaseService {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        return try DatabaseService(dbQueue: dbQueue)
+    }
+
+    /// Runs `body` with the seed marker forced to `false`, restoring whatever
+    /// the host's UserDefaults held before, so the test never leaks state.
+    private func withResetMarker(_ body: () throws -> Void) rethrows {
+        let original = Defaults[.hasSeededExampleSnippets]
+        defer { Defaults[.hasSeededExampleSnippets] = original }
+        Defaults[.hasSeededExampleSnippets] = false
+        try body()
+    }
+
+    func testSeedExamplesInsertsFolderAndSnippets() throws {
+        let db = try makeService()
+        try SeedService.seedExamples(into: db)
+
+        let folders = try db.fetchFolders()
+        let examples = try XCTUnwrap(folders.first { $0.title == SeedService.exampleFolderTitle })
+        let snippets = try db.fetchSnippets(inFolder: examples.id)
+        XCTAssertEqual(snippets.map(\.title), SeedService.exampleSnippets.map(\.title))
+        XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
+    }
+
+    func testSeedsOnEmptyStoreThenNeverAgain() throws {
+        try withResetMarker {
+            let db = try makeService()
+
+            XCTAssertTrue(SeedService.seedExampleSnippetsIfNeeded(into: db))
+            XCTAssertTrue(Defaults[.hasSeededExampleSnippets])
+            let afterFirst = try db.fetchFolders().filter { $0.title == SeedService.exampleFolderTitle }.count
+            XCTAssertEqual(afterFirst, 1)
+
+            // Marker is set — a second call is a no-op, no duplicate folder.
+            XCTAssertFalse(SeedService.seedExampleSnippetsIfNeeded(into: db))
+            let afterSecond = try db.fetchFolders().filter { $0.title == SeedService.exampleFolderTitle }.count
+            XCTAssertEqual(afterSecond, 1)
+        }
+    }
+
+    func testDoesNotSeedWhenSnippetsAlreadyExist() throws {
+        try withResetMarker {
+            let db = try makeService()
+            let existing = SnippetFolder(title: "My Stuff", sortIndex: 0)
+            try db.saveFolder(existing)
+            try db.saveSnippet(Snippet(folderId: existing.id, title: "Mine", content: "x", sortIndex: 0))
+
+            XCTAssertFalse(SeedService.seedExampleSnippetsIfNeeded(into: db))
+            // No Examples folder injected, but the marker is set so we stop checking.
+            XCTAssertTrue(try db.fetchFolders().allSatisfy { $0.title != SeedService.exampleFolderTitle })
+            XCTAssertTrue(Defaults[.hasSeededExampleSnippets])
+        }
     }
 }
 

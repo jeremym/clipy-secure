@@ -514,6 +514,14 @@ final class DatabaseService: Sendable {
         }
     }
 
+    /// True when there are no snippets and no snippet folders. Used by
+    /// SeedService to avoid injecting examples into an existing user's store.
+    func isSnippetStoreEmpty() throws -> Bool {
+        try dbQueue.read { db in
+            try SnippetFolder.fetchCount(db) == 0 && Snippet.fetchCount(db) == 0
+        }
+    }
+
     func deleteFolder(id: String) throws {
         _ = try dbQueue.write { db in
             try SnippetFolder.deleteOne(db, id: id)
