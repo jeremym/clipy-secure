@@ -14,21 +14,34 @@ import AppKit
 @MainActor
 enum ActivationPolicyManager {
     private static var promotionCount = 0
+    /// Who was frontmost when our first window opened, so focus can return there
+    /// when the last one closes (review #16).
+    private static var previousApp: NSRunningApplication?
 
     /// Promote to `.regular` (Dock icon + Cmd-Tab). Every call must be balanced
     /// by `endWindowSession()`, or the app will never return to the menu bar.
     static func beginWindowSession() {
-        promotionCount += 1
-        if promotionCount == 1 {
+        if promotionCount == 0 {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            // Don't record ourselves — otherwise closing would "restore" focus
+            // to the app we're demoting.
+            if frontmost?.bundleIdentifier != Bundle.main.bundleIdentifier {
+                previousApp = frontmost
+            }
             NSApp.setActivationPolicy(.regular)
         }
+        promotionCount += 1
     }
 
-    /// Demote back to `.accessory` once the last promoted window has closed.
+    /// Demote back to `.accessory` once the last promoted window has closed, and
+    /// hand focus back to whoever had it before. Demoting while active otherwise
+    /// lets AppKit pick an arbitrary app to activate (review #16).
     static func endWindowSession() {
         promotionCount = max(0, promotionCount - 1)
         if promotionCount == 0 {
             NSApp.setActivationPolicy(.accessory)
+            previousApp?.activate(from: .current)
+            previousApp = nil
         }
     }
 }
@@ -62,10 +75,50 @@ extension NSWindow {
     /// inactive only places it at the top of *its own* layer, which leaves it
     /// beneath the frontmost app's windows. Activating first makes this app
     /// current, so the subsequent order-front is genuinely on top.
+    ///
+    /// Cooperative activation on macOS 14+ can refuse an accessory app's request
+    /// outright — a global hotkey plus a detached menu does not reliably count as
+    /// the user interacting with *this* app. When it refuses, `makeKeyAndOrderFront`
+    /// raises the window only within our own inactive layer, i.e. behind the
+    /// frontmost app. The fallback floats the window above everything until it
+    /// actually becomes key, then drops it back to a normal level so it behaves
+    /// like an ordinary window from then on. The collection behaviour makes the
+    /// window follow the user to the active Space (including a full-screen app's
+    /// own Space) rather than staying pinned where it first appeared.
     func presentDeferred() {
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         Task { @MainActor in
             NSApp.activate()
             makeKeyAndOrderFront(nil)
+            guard !NSApp.isActive else { return }
+            floatUntilKey()
         }
     }
+
+    /// Floats the window above the frontmost app until it becomes key, then
+    /// returns it to `.normal`. Used only when cooperative activation is refused.
+    private func floatUntilKey() {
+        level = .floating
+        let box = ObserverBox()
+        box.token = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: self,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.level = .normal
+            }
+            if let token = box.token {
+                NotificationCenter.default.removeObserver(token)
+                box.token = nil
+            }
+        }
+    }
+}
+
+/// Holds a one-shot notification token so the observer block can remove itself.
+/// `@unchecked Sendable` is sound here: the box is only ever touched on the main
+/// thread (the observer is registered with `queue: .main`).
+private final class ObserverBox: @unchecked Sendable {
+    var token: NSObjectProtocol?
 }

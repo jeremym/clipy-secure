@@ -50,6 +50,21 @@ final class EncryptionKeyManager: Sendable {
         }
     }
 
+    /// Removes the key item so the next `getOrCreateDatabaseKey()` mints a fresh
+    /// one. Used by the store-reset recovery when the existing key can't be read
+    /// (review #15). errSecItemNotFound is success — there's nothing to remove.
+    func deleteKey() throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw EncryptionKeyError.keychainError(status)
+        }
+    }
+
     private func storeKeyInKeychain(_ key: String) throws {
         guard let data = key.data(using: .utf8) else {
             throw EncryptionKeyError.corruptedKey

@@ -36,6 +36,14 @@ struct HistoryListView: View {
                         .onTapGesture {
                             pasteItem(item)
                         }
+                        .contextMenu {
+                            Button("Paste") { pasteItem(item) }
+                            if item.isMemory {
+                                Button("Remove from Memory") { removeFromMemory(item) }
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) { deleteClip(item) }
+                        }
                 }
                 .listStyle(.plain)
             }
@@ -95,12 +103,43 @@ struct HistoryListView: View {
         }
     }
 
+    /// The safe home (per plan §6) for per-clip removal — a floating,
+    /// non-activating panel, so acting here never disturbs the target app's
+    /// focus the way a custom clip-menu item would. Closes review #2's gap: a
+    /// memorised secret can be forgotten or deleted outright.
+    private func removeFromMemory(_ item: ClipItem) {
+        do {
+            try databaseService.removeFromMemory(clipId: item.id)
+        } catch {
+            Logger.database.error("Failed to remove from memory: \(error.localizedDescription)")
+        }
+        refreshAfterMutation()
+    }
+
+    private func deleteClip(_ item: ClipItem) {
+        do {
+            try databaseService.deleteClip(id: item.id)
+        } catch {
+            Logger.database.error("Failed to delete clip: \(error.localizedDescription)")
+        }
+        refreshAfterMutation()
+    }
+
+    /// The live observation refreshes the unfiltered list on its own; an active
+    /// search holds a snapshot, so re-run it to reflect the change.
+    private func refreshAfterMutation() {
+        guard !searchText.isEmpty else { return }
+        do {
+            items = try databaseService.searchClips(query: searchText)
+        } catch {
+            Logger.database.error("Search refresh after mutation failed: \(error.localizedDescription)")
+        }
+    }
+
     private func pasteItem(_ item: ClipItem) {
         guard let changeCount = pasteService.writeToClipboard(item) else { return }
-
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(changeCount)
 
         onDismiss()
 

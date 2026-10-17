@@ -55,8 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             // Menu bar apps run for weeks — expiration must be enforced
-            // periodically, not just at launch.
-            cleanupTask = Task { [cleanup] in
+            // periodically, not just at launch. Detached so the delete + VACUUM
+            // runs off the main actor (DataCleanupService is Sendable and only
+            // touches the thread-safe dbQueue); otherwise a Task here inherits
+            // @MainActor and VACUUM stalls the UI (review #10).
+            cleanupTask = Task.detached { [cleanup] in
                 while !Task.isCancelled {
                     do {
                         try await Task.sleep(for: .seconds(Constants.cleanupIntervalSeconds))
@@ -123,13 +126,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
         } catch {
-            let alert = NSAlert()
-            alert.messageText = String(localized: "Failed to Initialize")
-            alert.informativeText = String(localized: "ClipySecure could not start: \(error.localizedDescription)")
-            alert.alertStyle = .critical
-            alert.runModal()
+            handleStartupFailure(error)
+        }
+    }
+
+    /// Recovery for a failed start — most often the Keychain prompt being denied
+    /// after a re-sign, which leaves the encryption key unreadable. Rather than
+    /// just terminating (review #15), offer to retry (re-prompt) or reset the
+    /// store (new key + empty history). Quit stays the safe default button.
+    private func handleStartupFailure(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "ClipySecure Couldn't Start")
+        alert.informativeText = String(localized: """
+            \(error.localizedDescription)
+
+            This usually means access to the encryption key in your Keychain was \
+            denied. You can try again, or reset to start fresh (this erases saved \
+            history and creates a new key).
+            """)
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: String(localized: "Try Again"))
+        alert.addButton(withTitle: String(localized: "Reset History\u{2026}"))
+        alert.addButton(withTitle: String(localized: "Quit"))
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            startServices()
+        case .alertSecondButtonReturn:
+            confirmResetAndRestart(originalError: error)
+        default:
             NSApplication.shared.terminate(nil)
         }
+    }
+
+    private func confirmResetAndRestart(originalError: Error) {
+        let confirm = NSAlert()
+        confirm.messageText = String(localized: "Reset ClipySecure?")
+        confirm.informativeText = String(localized: "This permanently deletes your saved clipboard history and encryption key, then starts fresh. This can't be undone.")
+        confirm.alertStyle = .warning
+        confirm.addButton(withTitle: String(localized: "Reset"))
+        confirm.addButton(withTitle: String(localized: "Cancel"))
+        confirm.buttons[0].hasDestructiveAction = true
+        confirm.buttons[0].keyEquivalent = ""
+        confirm.buttons[1].keyEquivalent = "\r"
+
+        guard confirm.runModal() == .alertFirstButtonReturn else {
+            handleStartupFailure(originalError)
+            return
+        }
+        do {
+            try DatabaseService.destroyStore()
+        } catch {
+            Logger.database.error("Store reset failed: \(error.localizedDescription)")
+        }
+        startServices()
+    }
+
+    /// Target of the main-menu "Preferences…" item (⌘,), reached through the
+    /// responder chain. No-op until services are up (e.g. during onboarding),
+    /// since the window is created in `startServices()`.
+    @objc func openPreferences(_ sender: Any?) {
+        preferencesWindow?.showWindow()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

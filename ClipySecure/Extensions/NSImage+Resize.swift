@@ -2,6 +2,16 @@ import AppKit
 import Foundation
 
 extension NSImage {
+    /// Full-resolution PNG encoding of the image, for faithful storage/paste.
+    /// Uses the backing CGImage so the pixel dimensions are preserved.
+    func pngData() -> Data? {
+        guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        return rep.representation(using: .png, properties: [:])
+    }
+
     func resizedToThumbnail(maxWidth: CGFloat = 200) -> Data? {
         let originalSize = size
         guard originalSize.width > 0, originalSize.height > 0 else { return nil }
