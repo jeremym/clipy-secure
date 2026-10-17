@@ -576,6 +576,141 @@ final class SeedServiceTests: XCTestCase {
     }
 }
 
+final class ObsidianExportServiceTests: XCTestCase {
+
+    private var vaultURL: URL!
+
+    override func setUpWithError() throws {
+        vaultURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("obsidian-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultURL, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: vaultURL)
+    }
+
+    private func options(frontmatter: Bool = true, fence: Bool = true, subfolder: String = "ClipySecure") -> ObsidianExportService.Options {
+        ObsidianExportService.Options(
+            vaultURL: vaultURL,
+            subfolder: subfolder,
+            filenameTemplate: "{date} {title}",
+            includeFrontmatter: frontmatter,
+            fenceNonMarkdown: fence
+        )
+    }
+
+    private func read(_ url: URL) throws -> String {
+        try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testTextNoteWritesIntoSubfolderWithFrontmatter() throws {
+        let clip = ClipItem(stringValue: "plain clipboard text")
+        let url = try ObsidianExportService.export(clip, options: options())
+
+        XCTAssertEqual(url.pathExtension, "md")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "ClipySecure")
+        let body = try read(url)
+        XCTAssertTrue(body.hasPrefix("---"))
+        XCTAssertTrue(body.contains("tags: [clipysecure]"))
+        XCTAssertTrue(body.contains("type: string"))
+        XCTAssertTrue(body.contains("plain clipboard text"))
+    }
+
+    func testFrontmatterOffOmitsHeader() throws {
+        let clip = ClipItem(stringValue: "no frontmatter please")
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertFalse(body.hasPrefix("---"))
+        XCTAssertTrue(body.contains("no frontmatter please"))
+    }
+
+    func testNonMarkdownTextIsFenced() throws {
+        let clip = ClipItem(stringValue: "just one plain line")
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false, fence: true))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("```\njust one plain line\n```"))
+    }
+
+    func testMarkdownTextIsNotFenced() throws {
+        let markdown = "# Heading\n\n- a bullet\n- another"
+        let clip = ClipItem(stringValue: markdown)
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false, fence: true))
+        let body = try read(url)
+        XCTAssertFalse(body.contains("```"), "Markdown content must not be wrapped in a code fence")
+        XCTAssertTrue(body.contains("# Heading"))
+    }
+
+    func testURLBecomesMarkdownLink() throws {
+        let content = ClipContent(
+            primaryType: .url, stringValue: "https://example.com",
+            rtfData: nil, pdfData: nil, imageData: nil, filenames: nil,
+            urls: ["https://example.com"], sourceAppId: nil, types: [.url]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        XCTAssertTrue(try read(url).contains("[https://example.com](https://example.com)"))
+    }
+
+    func testFilenamesBecomeBulletList() throws {
+        let content = ClipContent(
+            primaryType: .filenames, stringValue: nil,
+            rtfData: nil, pdfData: nil, imageData: nil,
+            filenames: ["/tmp/a.txt", "/tmp/b.png"], urls: nil, sourceAppId: nil, types: [.filenames]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("- `/tmp/a.txt`"))
+        XCTAssertTrue(body.contains("- `/tmp/b.png`"))
+    }
+
+    func testImageWritesPngAttachmentAndEmbed() throws {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )
+        let tiff = try XCTUnwrap(rep?.tiffRepresentation)
+        let content = ClipContent(
+            primaryType: .tiff, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: tiff, filenames: nil, urls: nil, sourceAppId: nil, types: [.tiff]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("![["), "Image note should embed an attachment")
+        XCTAssertTrue(body.contains(".png]]"))
+
+        let attachments = url.deletingLastPathComponent().appendingPathComponent("attachments")
+        let files = try FileManager.default.contentsOfDirectory(atPath: attachments.path)
+        XCTAssertEqual(files.filter { $0.hasSuffix(".png") }.count, 1)
+    }
+
+    func testCollisionGetsSuffixNeverOverwrites() throws {
+        let clip = ClipItem(stringValue: "same title content")
+        let first = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+        let second = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(second.deletingPathExtension().lastPathComponent.hasSuffix("(2)"))
+        // Both files still exist — the first was never overwritten.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+    }
+
+    func testEmptyContentThrows() throws {
+        let content = ClipContent(
+            primaryType: .string, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.string]
+        )
+        XCTAssertThrowsError(try ObsidianExportService.export(ClipItem(content: content), options: options()))
+    }
+
+    func testFilenameUsesIsoDate() throws {
+        let clip = ClipItem(stringValue: "dated note")
+        let name = ObsidianExportService.fileName(for: clip, template: "{date} {title}")
+        XCTAssertNotNil(name.range(of: "^\\d{4}-\\d{2}-\\d{2} ", options: .regularExpression))
+    }
+}
+
 final class FieldEncryptionTests: XCTestCase {
 
     func testStringRoundTrip() throws {

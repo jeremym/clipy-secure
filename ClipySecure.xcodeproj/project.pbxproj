@@ -31,6 +31,8 @@
 		A10000010000000000000250 /* Logger+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000250 /* Logger+App.swift */; };
 		A10000010000000000000204 /* DataCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000204 /* DataCleanupService.swift */; };
 		A10000010000000000000206 /* SeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000206 /* SeedService.swift */; };
+		A10000010000000000000208 /* ObsidianExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000208 /* ObsidianExportService.swift */; };
+		A10000010000000000000513 /* ObsidianSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000513 /* ObsidianSettingsView.swift */; };
 		A10000010000000000000300 /* SnippetFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000300 /* SnippetFolder.swift */; };
 		A10000010000000000000301 /* Snippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000301 /* Snippet.swift */; };
 		A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000302 /* SnippetEditorViewModel.swift */; };
@@ -100,6 +102,8 @@
 		A20000010000000000000250 /* Logger+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Logger+App.swift"; sourceTree = "<group>"; };
 		A20000010000000000000204 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
 		A20000010000000000000206 /* SeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedService.swift; sourceTree = "<group>"; };
+		A20000010000000000000208 /* ObsidianExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObsidianExportService.swift; sourceTree = "<group>"; };
+		A20000010000000000000513 /* ObsidianSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObsidianSettingsView.swift; sourceTree = "<group>"; };
 		A20000010000000000000300 /* SnippetFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetFolder.swift; sourceTree = "<group>"; };
 		A20000010000000000000301 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
 		A20000010000000000000302 /* SnippetEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetEditorViewModel.swift; sourceTree = "<group>"; };
@@ -208,6 +212,7 @@
 				A20000010000000000000202 /* PasteboardReader.swift */,
 				A20000010000000000000204 /* DataCleanupService.swift */,
 				A20000010000000000000206 /* SeedService.swift */,
+				A20000010000000000000208 /* ObsidianExportService.swift */,
 				A20000010000000000000305 /* SnippetImportExport.swift */,
 				A20000010000000000000400 /* HotKeyService.swift */,
 				A20000010000000000000401 /* PasteService.swift */,
@@ -314,6 +319,7 @@
 				A20000010000000000000507 /* ShortcutSettingsView.swift */,
 				A20000010000000000000508 /* ExcludedAppsView.swift */,
 				A20000010000000000000509 /* PrivacySettingsView.swift */,
+				A20000010000000000000513 /* ObsidianSettingsView.swift */,
 			);
 			path = Preferences;
 			sourceTree = "<group>";
@@ -466,6 +472,8 @@
 				A10000010000000000000250 /* Logger+App.swift in Sources */,
 				A10000010000000000000204 /* DataCleanupService.swift in Sources */,
 				A10000010000000000000206 /* SeedService.swift in Sources */,
+				A10000010000000000000208 /* ObsidianExportService.swift in Sources */,
+				A10000010000000000000513 /* ObsidianSettingsView.swift in Sources */,
 				A10000010000000000000300 /* SnippetFolder.swift in Sources */,
 				A10000010000000000000301 /* Snippet.swift in Sources */,
 				A10000010000000000000302 /* SnippetEditorViewModel.swift in Sources */,

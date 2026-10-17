@@ -29,6 +29,17 @@ extension Defaults.Keys {
     static let memoryExpirationDays = Key<Int>("memoryExpirationDays", default: 0)
     static let numberOfMemoryItemsInline = Key<Int>("numberOfMemoryItemsInline", default: 2)
     static let numberOfItemsPerMemoryFolder = Key<Int>("numberOfItemsPerMemoryFolder", default: 40)
+
+    // Obsidian export. A sanctioned plaintext exit — content written to the
+    // vault lands on disk unencrypted by explicit user action. See
+    // ObsidianExportService.
+    static let obsidianVaultPath = Key<String>("obsidianVaultPath", default: "")
+    static let obsidianSubfolder = Key<String>("obsidianSubfolder", default: "ClipySecure")
+    static let obsidianFilenameTemplate = Key<String>("obsidianFilenameTemplate", default: "{date} {title}")
+    static let obsidianFrontmatter = Key<Bool>("obsidianFrontmatter", default: true)
+    static let obsidianFenceCode = Key<Bool>("obsidianFenceCode", default: true)
+    static let obsidianOpenAfterSave = Key<Bool>("obsidianOpenAfterSave", default: false)
+    static let obsidianRemoveFromMemory = Key<Bool>("obsidianRemoveFromMemory", default: false)
 }
 
 extension ClipContentType: CaseIterable {
