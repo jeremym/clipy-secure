@@ -1,5 +1,13 @@
 # Release setup — one-time runbook
 
+> **Recorded values**
+> - Signing identity: `ClipySecure Release` (self-signed, created 2026-10-16, valid 20 years)
+> - Certificate leaf SHA-256: `d3eeed0aaa33d12845a3d926c4e06a36513a71d8bb022cbd355ce45c5b9d3260`
+>
+> Put the leaf hash in the README's "Verifying a release" section so downloads
+> can be checked with `codesign -d -r- ClipySecure.app`.
+
+
 Releases are **built and signed locally** on your Mac. There is no CI signing,
 so the signing key never leaves your machine and there are **no GitHub secrets**
 to manage. The only accounts involved are your own `git`/`gh`, which are already

@@ -36,11 +36,16 @@ IDENTITY="ClipySecure Release"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 OUT="ClipySecure-Release"
 P12_PASSWORD=""
+NO_BACKUP=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --out) OUT="$2"; shift 2 ;;
         --p12-password) P12_PASSWORD="$2"; shift 2 ;;
+        # Skip the .p12 export entirely. Use this when you'd rather export the
+        # backup yourself from Keychain Access (so its password is typed only by
+        # you). The identity is still created and trusted.
+        --no-backup) NO_BACKUP=1; shift ;;
         *) echo "error: unknown argument '$1'" >&2; exit 2 ;;
     esac
 done
@@ -51,7 +56,7 @@ if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTITY"; 
     exit 0
 fi
 
-if [[ -z "$P12_PASSWORD" ]]; then
+if [[ "$NO_BACKUP" == "0" && -z "$P12_PASSWORD" ]]; then
     read -r -s -p "Choose a password to protect the exported .p12: " P12_PASSWORD
     echo
     if [[ -z "$P12_PASSWORD" ]]; then
@@ -95,14 +100,16 @@ security import "$WORKDIR/cert.p12" -k "$KEYCHAIN" -P temp -A >/dev/null
 echo "==> Trusting it for code signing (may prompt for your password)"
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$WORKDIR/cert.pem"
 
-# Export a password-protected backup copy, using the same legacy algorithms so
-# it can be re-imported later if the keychain identity is ever lost.
-echo "==> Exporting password-protected backup .p12 to $OUT.p12"
-openssl pkcs12 -export \
-    -inkey "$WORKDIR/key.pem" -in "$WORKDIR/cert.pem" \
-    -out "$OUT.p12" -name "$IDENTITY" \
-    -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
-    -passout pass:"$P12_PASSWORD" 2>/dev/null
+if [[ "$NO_BACKUP" == "0" ]]; then
+    # Export a password-protected backup copy, using the same legacy algorithms
+    # so it can be re-imported later if the keychain identity is ever lost.
+    echo "==> Exporting password-protected backup .p12 to $OUT.p12"
+    openssl pkcs12 -export \
+        -inkey "$WORKDIR/key.pem" -in "$WORKDIR/cert.pem" \
+        -out "$OUT.p12" -name "$IDENTITY" \
+        -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
+        -passout pass:"$P12_PASSWORD" 2>/dev/null
+fi
 
 LEAF_SHA="$(openssl x509 -in "$WORKDIR/cert.pem" -outform DER | shasum -a 256 | awk '{print $1}')"
 
@@ -110,7 +117,12 @@ echo
 echo "Done."
 echo
 echo "  Identity:          $IDENTITY (in your login keychain)"
-echo "  Backup (keep safe): $OUT.p12  (store in your password manager — NEVER lose this)"
+if [[ "$NO_BACKUP" == "0" ]]; then
+    echo "  Backup (keep safe): $OUT.p12  (store in your password manager — NEVER lose this)"
+else
+    echo "  Backup:            none written. Export one from Keychain Access when ready:"
+    echo "                     right-click the \"$IDENTITY\" key > Export, choose a password."
+fi
 echo "  Cert leaf SHA-256: $LEAF_SHA  (record in README so downloads can be verified)"
 echo
 echo "Next (see docs/release-setup.md): switch install-local.sh to this identity"
