@@ -1,0 +1,147 @@
+name: Release
+
+# Cut a release by pushing a tag like v1.0.0 (from `main`, after develop -> main).
+# Builds a signed universal app, attaches a build attestation, publishes a GitHub
+# release, and bumps the Homebrew cask in jeremym/homebrew-tap.
+#
+# Requires three repository secrets (see docs/release-setup.md), added by hand:
+#   RELEASE_CERT_P12_BASE64  base64 of the "ClipySecure Release" .p12
+#   RELEASE_CERT_PASSWORD    the .p12 password
+#   TAP_PUSH_TOKEN           fine-grained PAT with contents:write on homebrew-tap
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write      # create the GitHub release
+  id-token: write      # build provenance attestation
+  attestations: write  # build provenance attestation
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.build.outputs.sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Select Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
+          echo "Using $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project ClipySecure.xcodeproj -scheme ClipySecure
+
+      - name: Test
+        run: >
+          xcodebuild test
+          -project ClipySecure.xcodeproj
+          -scheme ClipySecure
+          -destination 'platform=macOS'
+          -configuration Debug
+          CODE_SIGNING_ALLOWED=NO
+
+      - name: Import signing certificate into a temporary keychain
+        env:
+          CERT_B64: ${{ secrets.RELEASE_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.RELEASE_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          echo "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign -A
+          # Let codesign use the key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # Make the temp keychain searchable so the identity resolves.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            "$HOME/Library/Keychains/login.keychain-db"
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build, sign, and package
+        id: build
+        run: |
+          set -euo pipefail
+          scripts/build-release.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --identity "ClipySecure Release" \
+            --build-number "${{ github.run_number }}"
+          SHA="$(awk '{print $1}' "dist/ClipySecure-${{ steps.version.outputs.version }}.zip.sha256")"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/ClipySecure-${{ steps.version.outputs.version }}.zip
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ClipySecure-${{ steps.version.outputs.version }}.zip
+            dist/ClipySecure-${{ steps.version.outputs.version }}.zip.sha256
+          generate_release_notes: true
+
+  update-tap:
+    needs: release
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out the tap
+        uses: actions/checkout@v4
+        with:
+          repository: jeremym/homebrew-tap
+          token: ${{ secrets.TAP_PUSH_TOKEN }}
+          path: homebrew-tap
+
+      - name: Bump the cask
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          SHA256: ${{ needs.release.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          CASK="homebrew-tap/Casks/clipy-secure.rb"
+          /usr/bin/sed -i '' -E "s/version \"[^\"]+\"/version \"$VERSION\"/" "$CASK"
+          /usr/bin/sed -i '' -E "s/sha256 \"[^\"]+\"/sha256 \"$SHA256\"/" "$CASK"
+          echo "--- updated cask ---"
+          cat "$CASK"
+
+      - name: Validate the cask
+        run: |
+          set -euo pipefail
+          brew audit --cask --online homebrew-tap/Casks/clipy-secure.rb || true
+          brew style homebrew-tap/Casks/clipy-secure.rb || true
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/clipy-secure.rb
+          if git diff --cached --quiet; then
+            echo "No cask change to commit."
+          else
+            git commit -m "clipy-secure $VERSION"
+            git push
+          fi
