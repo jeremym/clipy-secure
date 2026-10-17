@@ -412,6 +412,111 @@ final class SecurityFixTests: XCTestCase {
     }
 }
 
+final class MemoryCleanupTests: XCTestCase {
+
+    private func makeStack() throws -> (DatabaseService, DatabaseQueue, DataCleanupService) {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+        let cleanup = DataCleanupService(dbQueue: dbQueue)
+        return (db, dbQueue, cleanup)
+    }
+
+    /// Saves a clip and marks it as a memory item with an explicit
+    /// `memorizedAt` so ordering/expiry are deterministic in tests.
+    @discardableResult
+    private func saveMemory(
+        _ db: DatabaseService,
+        _ dbQueue: DatabaseQueue,
+        text: String,
+        memorizedAt: Date,
+        pinned: Bool = false
+    ) throws -> String {
+        let clip = ClipItem(stringValue: text)
+        try db.save(clip: clip)
+        try dbQueue.write { d in
+            try d.execute(
+                sql: "UPDATE clipItem SET isMemory = 1, memorizedAt = ?, isPinned = ? WHERE id = ?",
+                arguments: [memorizedAt, pinned, clip.id]
+            )
+        }
+        return clip.id
+    }
+
+    private func memoryItems(_ db: DatabaseService) throws -> [ClipItem] {
+        try db.fetchHistory(limit: 1000).filter(\.isMemory)
+    }
+
+    func testEnforceMemoryLimitDropsOldest() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var ids: [String] = []
+        for i in 0..<5 {
+            ids.append(try saveMemory(db, dbQueue, text: "mem \(i)", memorizedAt: base.addingTimeInterval(Double(i))))
+        }
+
+        XCTAssertEqual(try cleanup.enforceMemoryLimit(2), 3)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        // The two newest (i == 3, 4) survive; the three oldest are dropped.
+        XCTAssertEqual(remaining, Set([ids[3], ids[4]]))
+    }
+
+    func testEnforceMemoryLimitPreservesPinned() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        // Oldest item is pinned — it must survive even though it is over the cap.
+        let pinnedOld = try saveMemory(db, dbQueue, text: "pinned old", memorizedAt: base, pinned: true)
+        _ = try saveMemory(db, dbQueue, text: "mid", memorizedAt: base.addingTimeInterval(10))
+        let newest = try saveMemory(db, dbQueue, text: "newest", memorizedAt: base.addingTimeInterval(20))
+
+        try cleanup.enforceMemoryLimit(1)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        // Pinned (outside the cap) + the single newest non-pinned item.
+        XCTAssertEqual(remaining, Set([pinnedOld, newest]))
+    }
+
+    func testEnforceMemoryLimitLeavesHistoryUntouched() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<3 {
+            try saveMemory(db, dbQueue, text: "mem \(i)", memorizedAt: base.addingTimeInterval(Double(i)))
+        }
+        for i in 0..<4 {
+            try db.save(clip: ClipItem(stringValue: "history \(i)"))
+        }
+
+        try cleanup.enforceMemoryLimit(1)
+
+        let historyCount = try db.fetchHistory(limit: 1000).filter { !$0.isMemory }.count
+        XCTAssertEqual(historyCount, 4, "Plain history rows must not be touched by the memory cap")
+    }
+
+    func testDeleteExpiredMemoryDropsPastCutoff() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let now = Date()
+        let old = try saveMemory(db, dbQueue, text: "old", memorizedAt: now.addingTimeInterval(-10 * 86_400))
+        let fresh = try saveMemory(db, dbQueue, text: "fresh", memorizedAt: now.addingTimeInterval(-1 * 86_400))
+
+        XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 1)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        XCTAssertEqual(remaining, Set([fresh]))
+        XCTAssertFalse(remaining.contains(old))
+    }
+
+    func testDeleteExpiredMemoryPreservesPinned() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let now = Date()
+        let pinnedOld = try saveMemory(
+            db, dbQueue, text: "pinned old", memorizedAt: now.addingTimeInterval(-30 * 86_400), pinned: true
+        )
+
+        XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 0)
+        XCTAssertTrue(try memoryItems(db).map(\.id).contains(pinnedOld))
+    }
+}
+
 final class FieldEncryptionTests: XCTestCase {
 
     func testStringRoundTrip() throws {

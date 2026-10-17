@@ -8,6 +8,7 @@ struct GeneralSettingsView: View {
     @Default(.numberOfItemsInFolder) var numberOfItemsInFolder
     @Default(.pollingInterval) var pollingInterval
     @Default(.maxMemorySize) var maxMemorySize
+    @Default(.memoryExpirationDays) var memoryExpirationDays
     @Default(.numberOfMemoryItemsInline) var numberOfMemoryItemsInline
     @Default(.numberOfItemsPerMemoryFolder) var numberOfItemsPerMemoryFolder
 
@@ -59,6 +60,11 @@ struct GeneralSettingsView: View {
                     in: 2...999
                 )
                 Stepper(
+                    "Memory expiration: \(memoryExpirationDays == 0 ? "Never" : "\(memoryExpirationDays) day\(memoryExpirationDays == 1 ? "" : "s")")",
+                    value: $memoryExpirationDays,
+                    in: 0...365
+                )
+                Stepper(
                     "Memory items at top level: \(numberOfMemoryItemsInline == 0 ? "All" : "\(numberOfMemoryItemsInline)")",
                     value: $numberOfMemoryItemsInline,
                     in: 0...50
@@ -72,6 +78,7 @@ struct GeneralSettingsView: View {
                 Text("Memory")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
+                    Text("Memory keeps your most recent \(maxMemorySize) saved clips; older ones drop off\(memoryExpirationDays == 0 ? "." : ", and anything older than \(memoryExpirationDays) day\(memoryExpirationDays == 1 ? "" : "s") expires.") Pinned clips are always kept. It's a short-term parking lot, not an archive — promote to a snippet to keep something forever.")
                     Text("Menu layout: \(numberOfMemoryItemsInline) at top level + \(memoryFolderCount) folder\(memoryFolderCount == 1 ? "" : "s") of \(numberOfItemsPerMemoryFolder)")
                     Text("Tip: set max memory = inline + (folders \u{00D7} items per folder) for evenly filled folders.")
                 }

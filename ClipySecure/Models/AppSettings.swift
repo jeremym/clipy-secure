@@ -22,6 +22,9 @@ extension Defaults.Keys {
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
     static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
     static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
+    // 0 = never expire. When > 0, memory items older than this many days are
+    // dropped by DataCleanupService alongside history expiry.
+    static let memoryExpirationDays = Key<Int>("memoryExpirationDays", default: 0)
     static let numberOfMemoryItemsInline = Key<Int>("numberOfMemoryItemsInline", default: 2)
     static let numberOfItemsPerMemoryFolder = Key<Int>("numberOfItemsPerMemoryFolder", default: 40)
 }
