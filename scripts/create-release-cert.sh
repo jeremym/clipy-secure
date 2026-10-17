@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Create the long-lived, self-signed "ClipySecure Release" code-signing
-# certificate used for public builds, and export it as a password-protected
-# .p12 for safekeeping and for CI.
+# certificate used for public builds, and export a password-protected .p12 as a
+# backup.
 #
 # This is the production sibling of create-signing-cert.sh. The difference that
 # matters: TCC keys the Accessibility grant to the signature's designated
@@ -11,6 +11,11 @@
 # reused forever. Rotating it makes every user re-approve Gatekeeper once and
 # re-grant Accessibility once. So: create it once, and never lose the .p12.
 #
+# Releases are built and signed locally (no CI signing), so the private key
+# never leaves this machine — the .p12 is purely your backup. Keep it in your
+# password manager; if the keychain identity is lost you restore from it rather
+# than minting a new cert (which would cost every user a re-grant).
+#
 # ⚠️  RUNNING THIS IS A PASSWORD-PROMPT STEP. `security import` and
 #     `security add-trusted-cert` will prompt for your Mac login password and
 #     change the login keychain. Run it yourself, at the keyboard — not from an
@@ -18,8 +23,7 @@
 #
 # What it produces:
 #   - an identity "ClipySecure Release" in your login keychain (valid 20 years)
-#   - <output>.p12           password-protected export (store in your password manager)
-#   - <output>.p12.base64    base64 of the .p12 for the GitHub secret RELEASE_CERT_P12_BASE64
+#   - <output>.p12   password-protected backup (store in your password manager)
 #   - prints the certificate leaf SHA-256 to record in the README
 #
 # Usage:
@@ -91,15 +95,14 @@ security import "$WORKDIR/cert.p12" -k "$KEYCHAIN" -P temp -A >/dev/null
 echo "==> Trusting it for code signing (may prompt for your password)"
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$WORKDIR/cert.pem"
 
-# Export the keeper copy with the caller's password, using the same legacy
-# algorithms so it can be re-imported on a CI runner.
-echo "==> Exporting password-protected .p12 to $OUT.p12"
+# Export a password-protected backup copy, using the same legacy algorithms so
+# it can be re-imported later if the keychain identity is ever lost.
+echo "==> Exporting password-protected backup .p12 to $OUT.p12"
 openssl pkcs12 -export \
     -inkey "$WORKDIR/key.pem" -in "$WORKDIR/cert.pem" \
     -out "$OUT.p12" -name "$IDENTITY" \
     -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
     -passout pass:"$P12_PASSWORD" 2>/dev/null
-base64 -i "$OUT.p12" -o "$OUT.p12.base64"
 
 LEAF_SHA="$(openssl x509 -in "$WORKDIR/cert.pem" -outform DER | shasum -a 256 | awk '{print $1}')"
 
@@ -107,10 +110,8 @@ echo
 echo "Done."
 echo
 echo "  Identity:          $IDENTITY (in your login keychain)"
-echo "  Keep safe:         $OUT.p12  (store in your password manager — NEVER lose this)"
-echo "  For GitHub secret: $OUT.p12.base64  -> RELEASE_CERT_P12_BASE64"
-echo "  Secret password:   the password you just chose -> RELEASE_CERT_PASSWORD"
+echo "  Backup (keep safe): $OUT.p12  (store in your password manager — NEVER lose this)"
 echo "  Cert leaf SHA-256: $LEAF_SHA  (record in README so downloads can be verified)"
 echo
-echo "Next (see docs/release-setup.md): add the two GitHub secrets, then switch"
-echo "install-local.sh to this identity and re-grant Accessibility once."
+echo "Next (see docs/release-setup.md): switch install-local.sh to this identity"
+echo "and re-grant Accessibility once, then build releases locally."

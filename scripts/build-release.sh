@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
 # Build a signed, universal Release build of ClipySecure and package it as a zip
-# ready for a GitHub release. Shared by CI (release.yml) and local dry runs.
+# ready to upload to a GitHub release. Releases are built and signed locally (no
+# CI signing), so run this on your Mac.
 #
 # This does NOT create or import any certificate — it signs with an identity
-# that must already be in the keychain (locally: "ClipySecure Release" from
-# scripts/create-release-cert.sh; in CI: imported into a temporary keychain by
-# release.yml). It never touches TCC or the login keychain's trust settings.
+# that must already be in the keychain ("ClipySecure Release", from
+# scripts/create-release-cert.sh). It never touches TCC or the login keychain's
+# trust settings.
 #
 # Usage:
 #   scripts/build-release.sh --version X.Y.Z [--identity NAME] [--build-number N]

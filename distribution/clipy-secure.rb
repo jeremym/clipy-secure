@@ -1,7 +1,7 @@
 # Ready-to-use Homebrew cask for the jeremym/homebrew-tap repo.
 # Copy this to  jeremym/homebrew-tap:Casks/clipy-secure.rb  (see docs/release-setup.md).
-# release.yml rewrites the `version` and `sha256` lines on every release, so keep
-# those two lines in this exact shape.
+# scripts/update-tap.sh rewrites the `version` and `sha256` lines on each release,
+# so keep those two lines in this exact shape.
 cask "clipy-secure" do
   version "1.0.0"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
@@ -23,8 +23,8 @@ cask "clipy-secure" do
 
   # Not notarized (no Apple Developer ID, by choice). Gatekeeper would block the
   # first launch, so drop the quarantine flag that Homebrew sets on downloads.
-  # Integrity is covered by the sha256 above and by the GitHub build attestation:
-  #   gh attestation verify ClipySecure-#{version}.zip --owner jeremym
+  # Integrity is covered by the sha256 above and by the certificate leaf hash in
+  # the release notes (codesign -d -r- ClipySecure.app).
   postflight_steps do
     run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/ClipySecure.app"], must_succeed: false
   end

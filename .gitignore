@@ -51,7 +51,6 @@ site/.astro/
 
 # Secrets
 *.p12
-*.p12.base64
 *.mobileprovision
 *.pem
 
