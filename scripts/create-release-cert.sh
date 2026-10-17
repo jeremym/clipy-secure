@@ -111,7 +111,10 @@ if [[ "$NO_BACKUP" == "0" ]]; then
         -passout pass:"$P12_PASSWORD" 2>/dev/null
 fi
 
-LEAF_SHA="$(openssl x509 -in "$WORKDIR/cert.pem" -outform DER | shasum -a 256 | awk '{print $1}')"
+# The SHA-1 fingerprint is what `codesign -d -r-` prints as `certificate leaf =
+# H"..."`, so it's the value a download is checked against.
+LEAF_SHA="$(openssl x509 -in "$WORKDIR/cert.pem" -noout -fingerprint -sha1 \
+    | sed 's/.*=//; s/://g' | tr '[:upper:]' '[:lower:]')"
 
 echo
 echo "Done."
@@ -123,7 +126,7 @@ else
     echo "  Backup:            none written. Export one from Keychain Access when ready:"
     echo "                     right-click the \"$IDENTITY\" key > Export, choose a password."
 fi
-echo "  Cert leaf SHA-256: $LEAF_SHA  (record in README so downloads can be verified)"
+echo "  Cert leaf (SHA-1): $LEAF_SHA  (record in README; matches codesign -d -r-)"
 echo
 echo "Next (see docs/release-setup.md): switch install-local.sh to this identity"
 echo "and re-grant Accessibility once, then build releases locally."

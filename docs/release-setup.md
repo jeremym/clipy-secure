@@ -2,10 +2,12 @@
 
 > **Recorded values**
 > - Signing identity: `ClipySecure Release` (self-signed, created 2026-10-16, valid 20 years)
-> - Certificate leaf SHA-256: `d3eeed0aaa33d12845a3d926c4e06a36513a71d8bb022cbd355ce45c5b9d3260`
+> - Certificate leaf hash (SHA-1, as shown by `codesign -d -r-`):
+>   `a3ed032a6666d06c91d1c35147ad0e44093c1b5e`
 >
-> Put the leaf hash in the README's "Verifying a release" section so downloads
-> can be checked with `codesign -d -r- ClipySecure.app`.
+> Put this in the README's "Verifying a release" section. A download matches when
+> `codesign -d -r- ClipySecure.app` prints
+> `certificate leaf = H"a3ed032a6666d06c91d1c35147ad0e44093c1b5e"`.
 
 
 Releases are **built and signed locally** on your Mac. There is no CI signing,
