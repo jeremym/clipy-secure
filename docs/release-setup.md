@@ -91,11 +91,13 @@ gh release create v1.0.0 \
     dist/ClipySecure-1.0.0.zip dist/ClipySecure-1.0.0.zip.sha256 \
     --title "v1.0.0" --generate-notes
 
-# 3. Bump the Homebrew cask in your local tap clone, then push it yourself
-scripts/update-tap.sh --tap ../homebrew-tap --version 1.0.0 \
+# 3. Bump the Homebrew cask in your local tap clone, then push it yourself.
+#    The tap lives at ~/GitProjects/personal/homebrew-tap (repo jeremym/homebrew-tap).
+scripts/update-tap.sh --tap ~/GitProjects/personal/homebrew-tap --version 1.0.0 \
     --zip dist/ClipySecure-1.0.0.zip
 #    review the diff it prints, then:
-git -C ../homebrew-tap commit -am "clipy-secure 1.0.0" && git -C ../homebrew-tap push
+git -C ~/GitProjects/personal/homebrew-tap commit -am "clipy-secure 1.0.0"
+git -C ~/GitProjects/personal/homebrew-tap push
 ```
 
 ### Verifying a download (put this in the README)

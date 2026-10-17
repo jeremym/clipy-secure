@@ -17,7 +17,7 @@ cask "clipy-secure" do
   end
 
   auto_updates false
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "ClipySecure.app"
 
