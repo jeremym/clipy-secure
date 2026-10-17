@@ -24,6 +24,7 @@ extension Defaults.Keys {
     static let hasSeededExampleSnippets = Key<Bool>("hasSeededExampleSnippets", default: false)
     static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
     static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
+    static let showMemorySection = Key<Bool>("showMemorySection", default: true)
     // 0 = never expire. When > 0, memory items older than this many days are
     // dropped by DataCleanupService alongside history expiry.
     static let memoryExpirationDays = Key<Int>("memoryExpirationDays", default: 0)

@@ -370,6 +370,38 @@ final class DatabaseServiceTests: XCTestCase {
         let afterRemove = try db.isAppExcluded(bundleId: "com.test.app")
         XCTAssertFalse(afterRemove)
     }
+
+    func testDeleteClipRemovesRowAndSearchEntry() throws {
+        let db = try makeService()
+        let keep = ClipItem(stringValue: "keep this clip")
+        let drop = ClipItem(stringValue: "drop unique-token-delete")
+        try db.save(clip: keep)
+        try db.save(clip: drop)
+
+        try db.delete(clipId: drop.id)
+
+        let items = try db.fetchHistory(limit: 100)
+        XCTAssertTrue(items.contains { $0.id == keep.id })
+        XCTAssertFalse(items.contains { $0.id == drop.id })
+        // Search index entry is gone too.
+        XCTAssertTrue(try db.searchClips(query: "unique-token-delete").isEmpty)
+    }
+
+    func testRemoveFromMemoryClearsFlag() throws {
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "memorized then forgotten")
+        try db.save(clip: clip)
+        try db.setMemory(clipId: clip.id)
+        XCTAssertTrue(try db.fetchClipItem(id: clip.id)?.isMemory ?? false)
+
+        try db.removeFromMemory(clipId: clip.id)
+
+        let item = try XCTUnwrap(db.fetchClipItem(id: clip.id))
+        XCTAssertFalse(item.isMemory)
+        XCTAssertNil(item.memorizedAt)
+        // The clip itself survives — it just leaves the Memory tier.
+        XCTAssertTrue(try db.fetchHistory(limit: 100).contains { $0.id == clip.id })
+    }
 }
 
 final class SecurityFixTests: XCTestCase {
@@ -515,6 +547,113 @@ final class MemoryCleanupTests: XCTestCase {
 
         XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 0)
         XCTAssertTrue(try memoryItems(db).map(\.id).contains(pinnedOld))
+    }
+}
+
+@MainActor
+final class ClipMenuBuilderTests: XCTestCase {
+
+    // The builder reads layout settings from Defaults; pin them to known values
+    // so the tests don't depend on the host machine's customizations.
+    private var saved: (keys: String, inline: Int, folder: Int, maxHistory: Int, memInline: Int, memFolder: Int, maxMem: Int)!
+
+    override func setUp() {
+        super.setUp()
+        saved = (
+            Defaults[.menuShortcutKeys], Defaults[.numberOfItemsInline], Defaults[.numberOfItemsInFolder],
+            Defaults[.maxHistorySize], Defaults[.numberOfMemoryItemsInline], Defaults[.numberOfItemsPerMemoryFolder],
+            Defaults[.maxMemorySize]
+        )
+        Defaults[.menuShortcutKeys] = MenuShortcutKeys.default
+        Defaults[.numberOfItemsInline] = 5
+        Defaults[.numberOfItemsInFolder] = 10
+        Defaults[.maxHistorySize] = 32
+        Defaults[.numberOfMemoryItemsInline] = 2
+        Defaults[.numberOfItemsPerMemoryFolder] = 40
+        Defaults[.maxMemorySize] = 42
+    }
+
+    override func tearDown() {
+        Defaults[.menuShortcutKeys] = saved.keys
+        Defaults[.numberOfItemsInline] = saved.inline
+        Defaults[.numberOfItemsInFolder] = saved.folder
+        Defaults[.maxHistorySize] = saved.maxHistory
+        Defaults[.numberOfMemoryItemsInline] = saved.memInline
+        Defaults[.numberOfItemsPerMemoryFolder] = saved.memFolder
+        Defaults[.maxMemorySize] = saved.maxMem
+        super.tearDown()
+    }
+
+    private func actions() -> ClipMenuBuilder.RowActions {
+        ClipMenuBuilder.RowActions(
+            paste: Selector(("paste:")),
+            primary: Selector(("primary:")),
+            obsidian: Selector(("obsidian:")),
+            destructive: Selector(("destructive:")),
+            openSubmenu: Selector(("openSubmenu:"))
+        )
+    }
+
+    private func actionSubmenu(in menu: NSMenu) throws -> NSMenu {
+        let alt = try XCTUnwrap(menu.items.first { $0.isAlternate && $0.hasSubmenu })
+        return try XCTUnwrap(alt.submenu)
+    }
+
+    func testHistoryRowOwnsThreeItemActionSubmenu() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "history one")
+        ClipMenuBuilder.addHistoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:"))
+        )
+
+        let submenu = try actionSubmenu(in: menu)
+        XCTAssertEqual(submenu.items.map(\.title), ["Save to Memory", "Send to Obsidian", "Delete"])
+        XCTAssertEqual(submenu.items.compactMap { $0.representedObject as? String }, Array(repeating: item.id, count: 3))
+        XCTAssertEqual(submenu.items.compactMap { $0.identifier?.rawValue }, ["clipkey:m", "clipkey:o", "clipkey:d"])
+    }
+
+    func testMemoryRowSubmenuUsesMemoryLabels() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "memory one")
+        ClipMenuBuilder.addMemoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:")), keyOffset: 5
+        )
+
+        let submenu = try actionSubmenu(in: menu)
+        XCTAssertEqual(submenu.items.map(\.title), ["Promote to Snippet", "Send to Obsidian", "Forget"])
+    }
+
+    func testHistoryRowEmitsPlainAndOptionOpeners() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "history one")
+        ClipMenuBuilder.addHistoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:"))
+        )
+
+        let identifiers = menu.items.compactMap { $0.identifier?.rawValue }
+        // Default key sequence starts at "1": a plain-key paste opener and an
+        // ⌥-key submenu opener, both hidden.
+        XCTAssertTrue(identifiers.contains("clipkey:1"))
+        XCTAssertTrue(identifiers.contains("clipkey-opt:1"))
+        let openers = menu.items.filter { ($0.identifier?.rawValue.hasPrefix("clipkey") ?? false) && $0.isHidden }
+        XCTAssertEqual(openers.count, 2)
+    }
+
+    func testInlineMemoryContinuesKeySequenceAfterHistory() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "memory one")
+        // keyOffset 5 → the inline memory row's paste opener is keyed to "6"
+        // (sequence index 5 of the default "1234567890…").
+        ClipMenuBuilder.addMemoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:")), keyOffset: 5
+        )
+        let identifiers = menu.items.compactMap { $0.identifier?.rawValue }
+        XCTAssertTrue(identifiers.contains("clipkey:6"))
+        XCTAssertFalse(identifiers.contains("clipkey:1"), "Memory row must not reuse a history key")
     }
 }
 

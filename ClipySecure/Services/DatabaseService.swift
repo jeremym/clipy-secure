@@ -462,6 +462,15 @@ final class DatabaseService: Sendable {
         try dbQueue.vacuum()
     }
 
+    /// Deletes a single clip (history or memory) and its search-index entry.
+    /// No VACUUM: the freed page holds only AES-GCM ciphertext, not plaintext.
+    func delete(clipId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM ftsmem.clipItemFts WHERE clipId = ?", arguments: [clipId])
+            try db.execute(sql: "DELETE FROM clipItem WHERE id = ?", arguments: [clipId])
+        }
+    }
+
     func deleteOldest(keeping limit: Int) throws {
         try dbQueue.write { db in
             // Clean up FTS entries for clips about to be deleted, preserving pinned/memory items

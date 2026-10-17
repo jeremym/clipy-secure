@@ -290,13 +290,32 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     // MARK: - Menu Assembly
 
+    private var historyRowActions: ClipMenuBuilder.RowActions {
+        ClipMenuBuilder.RowActions(
+            paste: #selector(historyItemClicked(_:)),
+            primary: #selector(saveToMemoryClicked(_:)),
+            obsidian: #selector(sendToObsidianClicked(_:)),
+            destructive: #selector(deleteClipClicked(_:)),
+            openSubmenu: #selector(historyFolderKeyPressed(_:))
+        )
+    }
+
+    private var memoryRowActions: ClipMenuBuilder.RowActions {
+        ClipMenuBuilder.RowActions(
+            paste: #selector(memoryItemClicked(_:)),
+            primary: #selector(promoteMemoryClicked(_:)),
+            obsidian: #selector(sendToObsidianClicked(_:)),
+            destructive: #selector(forgetMemoryClicked(_:)),
+            openSubmenu: #selector(historyFolderKeyPressed(_:))
+        )
+    }
+
     private func buildFullMenu(_ menu: NSMenu) {
-        ClipMenuBuilder.addHistoryItems(
+        let nextKeyIndex = ClipMenuBuilder.addHistoryItems(
             to: menu,
             items: historyItems,
             target: self,
-            pasteAction: #selector(historyItemClicked(_:)),
-            memoryAction: #selector(saveToMemoryClicked(_:)),
+            actions: historyRowActions,
             folderAction: #selector(historyFolderKeyPressed(_:))
         )
 
@@ -324,14 +343,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
 
         // Memory section (below snippets)
-        menu.addItem(NSMenuItem.separator())
-        ClipMenuBuilder.addMemoryItems(
-            to: menu,
-            items: memoryItems,
-            target: self,
-            pasteAction: #selector(memoryItemClicked(_:)),
-            promoteAction: #selector(promoteMemoryClicked(_:))
-        )
+        if Defaults[.showMemorySection] {
+            menu.addItem(NSMenuItem.separator())
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: memoryItems,
+                target: self,
+                actions: memoryRowActions,
+                folderAction: #selector(historyFolderKeyPressed(_:)),
+                keyOffset: nextKeyIndex
+            )
+        }
 
         // Bottom section: Edit Snippets, Preferences, Quit
         menu.addItem(NSMenuItem.separator())
@@ -366,8 +388,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             to: menu,
             items: historyItems,
             target: self,
-            pasteAction: #selector(historyItemClicked(_:)),
-            memoryAction: #selector(saveToMemoryClicked(_:)),
+            actions: historyRowActions,
             folderAction: #selector(historyFolderKeyPressed(_:))
         )
 
@@ -493,6 +514,82 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func promoteMemoryClicked(_ sender: NSMenuItem) {
         guard let clipId = sender.representedObject as? String else { return }
         promoteMemoryToSnippet(clipId: clipId)
+    }
+
+    /// ⌥ d on a history row — hard-delete the clip (and its search entry).
+    /// Single-row delete is not confirmed (the clip is easily re-copied);
+    /// Clear All keeps its confirmation.
+    @objc private func deleteClipClicked(_ sender: NSMenuItem) {
+        guard let clipId = sender.representedObject as? String else { return }
+        do {
+            try databaseService.delete(clipId: clipId)
+        } catch {
+            Logger.database.error("Failed to delete clip: \(error.localizedDescription)")
+        }
+    }
+
+    /// ⌥ d on a memory row — remove it from Memory (it stays in history).
+    /// The first UI caller of the previously-unused removeFromMemory.
+    @objc private func forgetMemoryClicked(_ sender: NSMenuItem) {
+        guard let clipId = sender.representedObject as? String else { return }
+        do {
+            try databaseService.removeFromMemory(clipId: clipId)
+        } catch {
+            Logger.database.error("Failed to forget memory item: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Obsidian
+
+    @objc private func sendToObsidianClicked(_ sender: NSMenuItem) {
+        guard let clipId = sender.representedObject as? String else { return }
+        sendToObsidian(clipId: clipId)
+    }
+
+    private func sendToObsidian(clipId: String) {
+        guard let options = ObsidianExportService.Options.current() else {
+            // No vault configured yet — send the user to set one up.
+            preferencesWindow?.showWindow()
+            return
+        }
+
+        // Fetch the full, decrypted clip (observations carry only lightweight
+        // columns) before writing it out as plaintext Markdown.
+        let item: ClipItem
+        do {
+            guard let fetched = try databaseService.fetchClipItem(id: clipId) else { return }
+            item = fetched
+        } catch {
+            Logger.database.error("Failed to fetch clip for Obsidian export: \(error.localizedDescription)")
+            return
+        }
+
+        do {
+            let url = try ObsidianExportService.export(item, options: options)
+            if Defaults[.obsidianRemoveFromMemory], item.isMemory {
+                do {
+                    try databaseService.removeFromMemory(clipId: clipId)
+                } catch {
+                    Logger.database.error("Failed to remove from memory after Obsidian export: \(error.localizedDescription)")
+                }
+            }
+            if Defaults[.obsidianOpenAfterSave] {
+                openInObsidian(url)
+            }
+        } catch {
+            Logger.general.error("Obsidian export failed: \(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Couldn't send to Obsidian")
+            alert.informativeText = String(localized: "Check the vault folder in Preferences \u{25B8} Obsidian.")
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
+    private func openInObsidian(_ url: URL) {
+        guard let encoded = url.path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let obsidianURL = URL(string: "obsidian://open?path=\(encoded)") else { return }
+        NSWorkspace.shared.open(obsidianURL)
     }
 
     // MARK: - Memory Actions
