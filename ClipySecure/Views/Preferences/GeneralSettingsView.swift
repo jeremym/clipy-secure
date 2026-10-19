@@ -8,9 +8,10 @@ struct GeneralSettingsView: View {
     @Default(.numberOfItemsInFolder) var numberOfItemsInFolder
     @Default(.pollingInterval) var pollingInterval
     @Default(.maxMemorySize) var maxMemorySize
+    @Default(.memoryExpirationDays) var memoryExpirationDays
+    @Default(.showMemorySection) var showMemorySection
     @Default(.numberOfMemoryItemsInline) var numberOfMemoryItemsInline
     @Default(.numberOfItemsPerMemoryFolder) var numberOfItemsPerMemoryFolder
-    @Default(.showMemorySection) var showMemorySection
 
     private var memoryLayoutDescription: String {
         let remaining = max(0, maxMemorySize - numberOfMemoryItemsInline)
@@ -59,13 +60,18 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                Toggle("Show Memory section in menu", isOn: $showMemorySection)
+                Toggle("Show Memory section in the menu", isOn: $showMemorySection)
                 Stepper(
                     "Max memory size: \(maxMemorySize)",
                     value: $maxMemorySize,
                     in: 2...999
                 )
                 .disabled(!showMemorySection)
+                Stepper(
+                    "Memory expiration: \(memoryExpirationDays == 0 ? "Never" : "\(memoryExpirationDays) day\(memoryExpirationDays == 1 ? "" : "s")")",
+                    value: $memoryExpirationDays,
+                    in: 0...365
+                )
                 Stepper(
                     "Memory items at top level: \(numberOfMemoryItemsInline == 0 ? "None (submenu)" : "\(numberOfMemoryItemsInline)")",
                     value: $numberOfMemoryItemsInline,
@@ -82,8 +88,9 @@ struct GeneralSettingsView: View {
                 Text("Memory")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
+                    Text("Memory keeps your most recent \(maxMemorySize) saved clips; older ones drop off\(memoryExpirationDays == 0 ? "." : ", and anything older than \(memoryExpirationDays) day\(memoryExpirationDays == 1 ? "" : "s") expires.") Pinned clips are always kept. It's a short-term parking lot, not an archive — promote to a snippet to keep something forever.")
+                    Text("At top level: 0 = None (the whole section collapses to one Memory \u{25B8} submenu). Inline rows share one key sequence with history, continuing after it; the Memory submenu opens with the next key.")
                     Text(memoryLayoutDescription)
-                    Text("Inline rows share one key sequence with history, continuing after it; the Memory submenu opens with the next key.")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

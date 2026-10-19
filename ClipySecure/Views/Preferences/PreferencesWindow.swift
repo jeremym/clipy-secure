@@ -7,6 +7,7 @@ private enum PreferencesTab: String, CaseIterable {
     case types
     case shortcuts
     case excludedApps
+    case obsidian
     case privacy
 
     var label: String {
@@ -16,6 +17,7 @@ private enum PreferencesTab: String, CaseIterable {
         case .types: String(localized: "Types")
         case .shortcuts: String(localized: "Shortcuts")
         case .excludedApps: String(localized: "Excluded Apps")
+        case .obsidian: String(localized: "Obsidian")
         case .privacy: String(localized: "Privacy")
         }
     }
@@ -27,6 +29,7 @@ private enum PreferencesTab: String, CaseIterable {
         case .types: "doc.on.clipboard"
         case .shortcuts: "keyboard"
         case .excludedApps: "xmark.app"
+        case .obsidian: "book.closed"
         case .privacy: "lock.shield"
         }
     }
@@ -127,6 +130,8 @@ final class PreferencesWindow: NSObject, NSToolbarDelegate {
             view = AnyView(ShortcutSettingsView())
         case .excludedApps:
             view = AnyView(ExcludedAppsView(databaseService: databaseService))
+        case .obsidian:
+            view = AnyView(ObsidianSettingsView())
         case .privacy:
             view = AnyView(PrivacySettingsView(databaseService: databaseService))
         }

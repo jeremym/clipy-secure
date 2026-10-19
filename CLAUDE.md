@@ -32,9 +32,17 @@ Use the scripts, not a bare `xcodebuild`, for any build you intend to actually r
 ./scripts/install-local.sh         # build + sign + install to /Applications + launch
 ```
 
-`install-local.sh` accepts `CODESIGN_IDENTITY` (default `ClipySecure Development`) and
+`install-local.sh` accepts `CODESIGN_IDENTITY` (default `ClipySecure Release`) and
 `SKIP_LAUNCH=1`. It aborts if the resulting designated requirement is cdhash-pinned,
 which would mean signing silently fell back to ad-hoc.
+
+The default is the **Release** identity on purpose: it is the same signature users get
+from the Homebrew cask (certificate leaf `a3ed032a…`), so a local build's designated
+requirement — and its Accessibility grant — matches the released app. Signing a local
+build with a *different* identity (e.g. `ClipySecure Development`) changes the designated
+requirement, so macOS treats it as a different app and the existing grant breaks (a stale
+entry shows in System Settings but auto-paste prompts anyway). Pass
+`CODESIGN_IDENTITY="ClipySecure Development"` only if you deliberately want the dev cert.
 
 **Why this matters.** Ad-hoc signing — what `xcodebuild` does by default — produces a
 designated requirement pinned to the binary hash:
@@ -105,6 +113,22 @@ Distribution needs a paid Apple Developer ID plus notarization.
 - Do not re-add `com.apple.security.app-sandbox` — App Sandbox is incompatible with being an Accessibility client, so a sandboxed build never appears in System Settings > Privacy & Security > Accessibility and auto-paste cannot work (verified on macOS 26 from both `/tmp` and `/Applications`). Privacy comes from field-level encryption, not the sandbox
 - Do not centre a window before assigning `contentViewController` — that assignment resizes to the hosting controller's fitting size, and SwiftUI `maxWidth: .infinity` makes that screen-wide; the shrink back is top-left anchored and pins the window under the menu bar. Use `NSWindow.setCenteredContent(_:size:)`
 - Do not block the main thread in `applicationWillTerminate` — `AppDelegate` is `@MainActor`, so `Task {}` inherits main-actor isolation and cannot run while the main thread waits, which deadlocks quit
+
+## When you ship a feature, update the docs
+
+User-facing behavior lives in several places that drift apart silently. Any time
+you add or change a feature, re-check all of these in the same change:
+
+- **README.md** — feature list and the Shortcuts section.
+- **Site** (`site/src/pages/*`, npm + `package-lock.json`): `/compare/` (feature rows),
+  `/how-it-works/`, `/faq/`, and any `⌥`/right-click descriptions.
+- **Onboarding** (`ClipySecure/Views/Onboarding/OnboardingView.swift`) if the UX changed.
+- **Preferences copy** — footers that explain the feature.
+- Keep `site/scripts/validate-content.mjs` passing: the install command and the
+  certificate leaf hash must read **verbatim** in README.md and on the site.
+
+Only advertise a feature once it has actually shipped — docs must not describe
+unshipped behavior.
 
 ## Project Status
 

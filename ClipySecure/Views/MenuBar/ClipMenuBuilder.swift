@@ -7,18 +7,27 @@ import Defaults
 @MainActor
 struct ClipMenuBuilder {
 
+    /// The selectors a clip row wires up. Holding ⌥ on a row reveals a three-item
+    /// submenu (m / o / d); the exact actions differ between history and memory
+    /// rows, so the caller supplies the right selectors for each section.
+    struct RowActions {
+        let paste: Selector        // plain click / plain key
+        let primary: Selector      // ⌥ m — Save to Memory (history) / Promote to Snippet (memory)
+        let obsidian: Selector     // ⌥ o — Send to Obsidian
+        let destructive: Selector  // ⌥ d — Delete (history) / Forget (memory)
+        let openSubmenu: Selector  // ⌥ + row key — pop the row's action submenu detached
+    }
+
     // MARK: - History Section
 
-    /// Builds the history section and returns the next free index into the shared
-    /// shortcut-key sequence, so the memory section can continue keying rows where
-    /// history left off instead of colliding with it.
+    /// Returns the next free shortcut-key index, so the memory section can
+    /// continue the same sequence rather than clash with the history keys.
     @discardableResult
     static func addHistoryItems(
         to menu: NSMenu,
         items historyItems: [ClipItem],
         target: AnyObject,
-        pasteAction: Selector,
-        memoryAction: Selector,
+        actions: RowActions,
         folderAction: Selector
     ) -> Int {
         let maxHistorySize = Defaults[.maxHistorySize]
@@ -43,65 +52,32 @@ struct ClipMenuBuilder {
         let shortcutKeys = MenuShortcutKeys.normalized(Defaults[.menuShortcutKeys])
 
         for index in 0..<itemsInline {
-            let prefix = MenuShortcutKeys.key(at: index, in: shortcutKeys)
-            let menuItem = buildHistoryItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: pasteAction)
-            menu.addItem(menuItem)
-
-            let altItem = buildMemoryAlternateItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: memoryAction)
-            menu.addItem(altItem)
+            let key = MenuShortcutKeys.key(at: index, in: shortcutKeys)
+            appendClipRow(displayItems[index], key: key, to: menu, target: target, actions: actions, memoryContext: false)
         }
+
+        var nextKeyIndex = itemsInline
 
         // Remaining items in folders
-        guard itemsInline < displayItems.count else {
-            // No overflow: the sequence is consumed only by the inline rows.
-            return itemsInline
-        }
-        let remaining = Array(displayItems[itemsInline...])
-        let chunks = remaining.chunked(into: folderSize)
+        if itemsInline < displayItems.count {
+            let remaining = Array(displayItems[itemsInline...])
+            let chunks = remaining.chunked(into: folderSize)
 
-        for (chunkIndex, chunk) in chunks.enumerated() {
-            // Folder rows continue the same sequence the inline rows began,
-            // so the first folder is keyed to whatever follows the last
-            // inline item (e.g. inline 1–5 then folders 6, 7, …).
-            let folderKey = MenuShortcutKeys.key(at: itemsInline + chunkIndex, in: shortcutKeys)
-            let folderTitle = folderKey.isEmpty ? "\(chunkIndex + 1)" : folderKey
-
-            let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
-            let submenu = NSMenu(title: folderTitle)
-
-            for (offset, item) in chunk.enumerated() {
-                // A submenu is its own key context — ancestors are suspended
-                // while it is open — so its rows restart at the sequence head.
-                let subPrefix = MenuShortcutKeys.key(at: offset, in: shortcutKeys)
-                let menuItem = buildHistoryItem(for: item, shortcutPrefix: subPrefix, target: target, action: pasteAction)
-                submenu.addItem(menuItem)
-
-                let altItem = buildMemoryAlternateItem(for: item, shortcutPrefix: subPrefix, target: target, action: memoryAction)
-                submenu.addItem(altItem)
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                // Folder rows continue the same sequence the inline rows began,
+                // so the first folder is keyed to whatever follows the last
+                // inline item (e.g. inline 1–5 then folders 6, 7, …).
+                let folderKey = MenuShortcutKeys.key(at: itemsInline + chunkIndex, in: shortcutKeys)
+                let folderTitle = folderKey.isEmpty ? "\(chunkIndex + 1)" : folderKey
+                addFolder(
+                    titled: folderTitle, key: folderKey, items: chunk, to: menu,
+                    target: target, actions: actions, folderAction: folderAction, memoryContext: false
+                )
             }
-
-            MenuKeyRouter.attach(to: submenu)
-            folderItem.submenu = submenu
-            menu.addItem(folderItem)
-
-            // AppKit never matches a key equivalent against an item that owns
-            // a submenu, so the folder's key lives on a hidden sibling —
-            // hidden items are still matched — whose action opens the folder.
-            // With no key left in the sequence there is nothing to route, so
-            // the opener is skipped (the folder still opens by click/arrow).
-            if !folderKey.isEmpty {
-                let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
-                opener.target = target
-                opener.representedObject = folderItem
-                opener.isHidden = true
-                MenuKeyRouter.assign(key: folderKey, to: opener)
-                menu.addItem(opener)
-            }
+            nextKeyIndex += chunks.count
         }
 
-        // Inline rows plus one slot per folder — the first free index the memory
-        // section continues from.
-        return itemsInline + chunks.count
+        return nextKeyIndex
     }
 
     // MARK: - Snippet Section
@@ -174,20 +150,65 @@ struct ClipMenuBuilder {
 
     // MARK: - Memory Section
 
-    /// Lays out the memory section. `startingKeyIndex` is where the shared
-    /// shortcut sequence stands after the history section, so inline memory rows
-    /// get real single-key shortcuts that continue past history instead of the
-    /// old mouse-only `m1`/`m2` labels (review #6).
     static func addMemoryItems(
         to menu: NSMenu,
         items memoryItems: [ClipItem],
-        startingKeyIndex: Int,
         target: AnyObject,
-        pasteAction: Selector,
-        promoteAction: Selector,
-        folderAction: Selector
+        actions: RowActions,
+        folderAction: Selector,
+        keyOffset: Int
     ) {
-        // "Memory" section header
+        menu.addItem(memoryHeaderItem())
+
+        guard !memoryItems.isEmpty else {
+            let emptyItem = NSMenuItem(title: String(localized: "No memories yet"), action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+            return
+        }
+
+        let maxMemorySize = Defaults[.maxMemorySize]
+        let inlineCount = Defaults[.numberOfMemoryItemsInline]
+        let folderSize = Defaults[.numberOfItemsPerMemoryFolder]
+        let shortcutKeys = MenuShortcutKeys.normalized(Defaults[.menuShortcutKeys])
+
+        let displayItems = Array(memoryItems.prefix(maxMemorySize))
+
+        // 0 means "collapse the whole section into one Memory ▸ submenu" — the
+        // opposite of the history section's "0 = all inline", chosen so a user
+        // who never uses Memory can tuck it out of the way with one setting.
+        if inlineCount == 0 {
+            let folderKey = MenuShortcutKeys.key(at: keyOffset, in: shortcutKeys)
+            addFolder(
+                titled: String(localized: "Memory"), key: folderKey, items: displayItems, to: menu,
+                target: target, actions: actions, folderAction: folderAction, memoryContext: true
+            )
+            return
+        }
+
+        let itemsInline = min(inlineCount, displayItems.count)
+        for index in 0..<itemsInline {
+            // Inline memory rows continue the shared sequence after history, so
+            // their single-key paste never collides with a history row's key.
+            let key = MenuShortcutKeys.key(at: keyOffset + index, in: shortcutKeys)
+            appendClipRow(displayItems[index], key: key, to: menu, target: target, actions: actions, memoryContext: true)
+        }
+
+        if itemsInline < displayItems.count {
+            let remaining = Array(displayItems[itemsInline...])
+            let chunks = remaining.chunked(into: folderSize)
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                let folderKey = MenuShortcutKeys.key(at: keyOffset + itemsInline + chunkIndex, in: shortcutKeys)
+                let folderTitle = folderKey.isEmpty ? "m\(chunkIndex + 1)" : folderKey
+                addFolder(
+                    titled: folderTitle, key: folderKey, items: chunk, to: menu,
+                    target: target, actions: actions, folderAction: folderAction, memoryContext: true
+                )
+            }
+        }
+    }
+
+    private static func memoryHeaderItem() -> NSMenuItem {
         let headerItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         let attrs: [NSAttributedString.Key: Any] = [
@@ -205,60 +226,81 @@ struct ClipMenuBuilder {
         headerStr.append(NSAttributedString(attachment: brainAttachment))
         headerStr.append(NSAttributedString(string: " Memory", attributes: attrs))
         headerItem.attributedTitle = headerStr
-        menu.addItem(headerItem)
+        return headerItem
+    }
 
-        guard !memoryItems.isEmpty else {
-            let emptyItem = NSMenuItem(title: String(localized: "No memories yet"), action: nil, keyEquivalent: "")
-            emptyItem.isEnabled = false
-            menu.addItem(emptyItem)
-            return
-        }
+    // MARK: - Row + folder assembly
 
-        let maxMemorySize = Defaults[.maxMemorySize]
-        let inlineCount = Defaults[.numberOfMemoryItemsInline]
-        let folderSize = Defaults[.numberOfItemsPerMemoryFolder]
+    /// Appends the four items that make up one clip row:
+    ///   1. the visible base row (click / plain key → paste),
+    ///   2. a keyless `isAlternate` row that owns the ⌥ action submenu,
+    ///   3. a hidden plain-key opener (the base row is keyless so the key lives
+    ///      here) and
+    ///   4. a hidden ⌥+key opener that pops the action submenu detached.
+    private static func appendClipRow(
+        _ item: ClipItem,
+        key: String,
+        to menu: NSMenu,
+        target: AnyObject,
+        actions: RowActions,
+        memoryContext: Bool
+    ) {
+        let base = buildBaseRow(for: item, shortcutPrefix: key, target: target, action: actions.paste)
+        menu.addItem(base)
+
+        let alt = buildActionAlternate(for: item, shortcutPrefix: key, target: target, actions: actions, memoryContext: memoryContext)
+        menu.addItem(alt)
+
+        guard !key.isEmpty else { return }
+
+        let pasteOpener = NSMenuItem(title: "", action: actions.paste, keyEquivalent: "")
+        pasteOpener.target = target
+        pasteOpener.representedObject = item.id
+        pasteOpener.isHidden = true
+        MenuKeyRouter.assign(key: key, to: pasteOpener)
+        menu.addItem(pasteOpener)
+
+        let submenuOpener = NSMenuItem(title: "", action: actions.openSubmenu, keyEquivalent: "")
+        submenuOpener.target = target
+        // The handler detaches and re-pops this alternate's submenu.
+        submenuOpener.representedObject = alt
+        submenuOpener.isHidden = true
+        MenuKeyRouter.assignOption(key: key, to: submenuOpener)
+        menu.addItem(submenuOpener)
+    }
+
+    /// Builds a folder row whose submenu holds `items` (each a full clip row),
+    /// keyed from the head of the sequence, plus the hidden opener that makes the
+    /// folder's own key pop it open.
+    private static func addFolder(
+        titled folderTitle: String,
+        key folderKey: String,
+        items: [ClipItem],
+        to menu: NSMenu,
+        target: AnyObject,
+        actions: RowActions,
+        folderAction: Selector,
+        memoryContext: Bool
+    ) {
         let shortcutKeys = MenuShortcutKeys.normalized(Defaults[.menuShortcutKeys])
+        let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: folderTitle)
 
-        let displayItems = Array(memoryItems.prefix(maxMemorySize))
-
-        // Unlike history, 0 here means "no inline rows — collapse the whole
-        // section into one Memory ▸ submenu", not "show all inline" (review #6).
-        let itemsInline = inlineCount == 0 ? 0 : min(inlineCount, displayItems.count)
-
-        // Inline rows continue the shared sequence after the history section, so
-        // they carry genuine single-key shortcuts (and the label shows the key).
-        for index in 0..<itemsInline {
-            let prefix = MenuShortcutKeys.key(at: startingKeyIndex + index, in: shortcutKeys)
-            menu.addItem(buildMemoryItem(for: displayItems[index], shortcutPrefix: prefix, target: target, action: pasteAction))
-            menu.addItem(buildMemoryPromoteAlternate(for: displayItems[index], shortcutPrefix: prefix, target: target, action: promoteAction))
+        for (offset, item) in items.enumerated() {
+            // A submenu is its own key context — ancestors are suspended while it
+            // is open — so its rows restart at the sequence head.
+            let subKey = MenuShortcutKeys.key(at: offset, in: shortcutKeys)
+            appendClipRow(item, key: subKey, to: submenu, target: target, actions: actions, memoryContext: memoryContext)
         }
 
-        // Everything past the inline rows lives in a single Memory ▸ submenu,
-        // opened by the next key in the sequence via a hidden sibling (AppKit
-        // won't match a key equivalent on a row that owns a submenu).
-        guard itemsInline < displayItems.count else { return }
-        let remaining = Array(displayItems[itemsInline...])
-
-        let submenu = NSMenu(title: String(localized: "Memory"))
-        fillMemorySubmenu(
-            remaining,
-            into: submenu,
-            folderSize: folderSize,
-            shortcutKeys: shortcutKeys,
-            target: target,
-            pasteAction: pasteAction,
-            promoteAction: promoteAction,
-            folderAction: folderAction
-        )
         MenuKeyRouter.attach(to: submenu)
-
-        let folderKey = MenuShortcutKeys.key(at: startingKeyIndex + itemsInline, in: shortcutKeys)
-        let memoryLabel = String(localized: "Memory")
-        let folderTitle = folderKey.isEmpty ? memoryLabel : "\(folderKey)  \(memoryLabel)"
-        let folderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
         folderItem.submenu = submenu
         menu.addItem(folderItem)
 
+        // AppKit never matches a key equivalent against an item that owns a
+        // submenu, so the folder's key lives on a hidden sibling whose action
+        // opens the folder. With no key left in the sequence the opener is
+        // skipped (the folder still opens by click/arrow).
         if !folderKey.isEmpty {
             let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
             opener.target = target
@@ -269,59 +311,9 @@ struct ClipMenuBuilder {
         }
     }
 
-    /// Fills the Memory ▸ submenu. A submenu is its own key context — ancestors
-    /// are suspended while it is open — so rows restart at the head of the
-    /// sequence. Small lists go directly; larger lists chunk into sub-folders of
-    /// `folderSize`, each keyed by the same hidden-opener trick.
-    private static func fillMemorySubmenu(
-        _ items: [ClipItem],
-        into submenu: NSMenu,
-        folderSize: Int,
-        shortcutKeys: [Character],
-        target: AnyObject,
-        pasteAction: Selector,
-        promoteAction: Selector,
-        folderAction: Selector
-    ) {
-        if folderSize <= 0 || items.count <= folderSize {
-            for (offset, item) in items.enumerated() {
-                let prefix = MenuShortcutKeys.key(at: offset, in: shortcutKeys)
-                submenu.addItem(buildMemoryItem(for: item, shortcutPrefix: prefix, target: target, action: pasteAction))
-                submenu.addItem(buildMemoryPromoteAlternate(for: item, shortcutPrefix: prefix, target: target, action: promoteAction))
-            }
-            return
-        }
-
-        for (chunkIndex, chunk) in items.chunked(into: folderSize).enumerated() {
-            let folderKey = MenuShortcutKeys.key(at: chunkIndex, in: shortcutKeys)
-            let folderTitle = folderKey.isEmpty ? "\(chunkIndex + 1)" : folderKey
-            let subfolderItem = NSMenuItem(title: folderTitle, action: nil, keyEquivalent: "")
-            let subsubmenu = NSMenu(title: folderTitle)
-
-            for (offset, item) in chunk.enumerated() {
-                let prefix = MenuShortcutKeys.key(at: offset, in: shortcutKeys)
-                subsubmenu.addItem(buildMemoryItem(for: item, shortcutPrefix: prefix, target: target, action: pasteAction))
-                subsubmenu.addItem(buildMemoryPromoteAlternate(for: item, shortcutPrefix: prefix, target: target, action: promoteAction))
-            }
-
-            MenuKeyRouter.attach(to: subsubmenu)
-            subfolderItem.submenu = subsubmenu
-            submenu.addItem(subfolderItem)
-
-            if !folderKey.isEmpty {
-                let opener = NSMenuItem(title: folderTitle, action: folderAction, keyEquivalent: "")
-                opener.target = target
-                opener.representedObject = subfolderItem
-                opener.isHidden = true
-                MenuKeyRouter.assign(key: folderKey, to: opener)
-                submenu.addItem(opener)
-            }
-        }
-    }
-
     // MARK: - Individual Item Builders
 
-    private static func buildHistoryItem(
+    private static func buildBaseRow(
         for item: ClipItem,
         shortcutPrefix: String,
         target: AnyObject,
@@ -407,17 +399,18 @@ struct ClipMenuBuilder {
         let memoryLabel = item.isMemory ? ", memorized" : ""
         menuItem.setAccessibilityLabel("Clipboard item: \(item.title)\(pinnedLabel)\(memoryLabel), type: \(typeLabel)")
 
-        // The prefix is a shortcut, not decoration — typing it pastes at once.
-        MenuKeyRouter.assign(key: shortcutPrefix, to: menuItem)
-
+        // The base row is keyless: single-key paste rides on a hidden opener so
+        // its keyless twin (the ⌥ alternate, which owns a submenu and therefore
+        // can't hold a key equivalent) still pairs with it for the ⌥ swap.
         return menuItem
     }
 
-    private static func buildMemoryAlternateItem(
+    private static func buildActionAlternate(
         for item: ClipItem,
         shortcutPrefix: String,
         target: AnyObject,
-        action: Selector
+        actions: RowActions,
+        memoryContext: Bool
     ) -> NSMenuItem {
         let maxLen = Defaults[.menuItemTitleMaxLength]
         let shorterMax = max(20, maxLen - 4)
@@ -426,100 +419,62 @@ struct ClipMenuBuilder {
             ? truncatedTitle
             : "\(shortcutPrefix)  \(truncatedTitle)"
 
-        let titleStr = NSMutableAttributedString(string: "\(displayTitle)  ")
-        let brainAttachment = NSTextAttachment()
-        let brainConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-        if let brainImage = NSImage(systemSymbolName: "brain", accessibilityDescription: "Save to Memory")?
-            .withSymbolConfiguration(brainConfig) {
-            brainImage.isTemplate = true
-            brainAttachment.image = brainImage
-        }
-        titleStr.append(NSAttributedString(attachment: brainAttachment))
-
-        let altItem = NSMenuItem(
-            title: "",
-            action: action,
-            keyEquivalent: ""
-        )
-        altItem.attributedTitle = titleStr
+        let altItem = NSMenuItem(title: displayTitle, action: nil, keyEquivalent: "")
         altItem.keyEquivalentModifierMask = .option
         altItem.isAlternate = true
         altItem.target = target
         altItem.representedObject = item.id
+        altItem.submenu = buildActionSubmenu(for: item, target: target, actions: actions, memoryContext: memoryContext)
         return altItem
     }
 
-    private static func buildMemoryItem(
+    /// The three-item ⌥ submenu: m / o / d. The labels differ between history
+    /// and memory rows; the selectors are supplied by the caller via `actions`.
+    private static func buildActionSubmenu(
         for item: ClipItem,
-        shortcutPrefix: String,
         target: AnyObject,
-        action: Selector
+        actions: RowActions,
+        memoryContext: Bool
+    ) -> NSMenu {
+        let submenu = NSMenu(title: String(localized: "Actions"))
+
+        submenu.addItem(actionItem(
+            title: memoryContext ? String(localized: "Promote to Snippet") : String(localized: "Save to Memory"),
+            glyph: memoryContext ? "arrow.right.doc.on.clipboard" : "brain",
+            key: "m", action: actions.primary, item: item, target: target
+        ))
+        submenu.addItem(actionItem(
+            title: String(localized: "Send to Obsidian"),
+            glyph: "book.closed",
+            key: "o", action: actions.obsidian, item: item, target: target
+        ))
+        submenu.addItem(actionItem(
+            title: memoryContext ? String(localized: "Forget") : String(localized: "Delete"),
+            glyph: memoryContext ? "minus.circle" : "trash",
+            key: "d", action: actions.destructive, item: item, target: target
+        ))
+
+        MenuKeyRouter.attach(to: submenu)
+        return submenu
+    }
+
+    private static func actionItem(
+        title: String,
+        glyph: String,
+        key: String,
+        action: Selector,
+        item: ClipItem,
+        target: AnyObject
     ) -> NSMenuItem {
-        let maxLen = Defaults[.menuItemTitleMaxLength]
-        let showTooltips = Defaults[.showTooltips]
-        let tooltipMaxLen = Defaults[.tooltipMaxLength]
-
-        let truncatedTitle = String(item.title.prefix(maxLen))
-        let isMarkdown = MarkdownDetector.looksLikeMarkdown(item.stringValue ?? "")
-        let mdPrefix = isMarkdown ? "MD " : ""
-        let displayTitle = shortcutPrefix.isEmpty
-            ? "\(mdPrefix)\(truncatedTitle)"
-            : "\(shortcutPrefix)  \(mdPrefix)\(truncatedTitle)"
-
-        let menuItem = NSMenuItem(
-            title: displayTitle,
-            action: action,
-            keyEquivalent: ""
-        )
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: "")
         menuItem.target = target
         menuItem.representedObject = item.id
-
-        if showTooltips, let str = item.stringValue {
-            menuItem.toolTip = String(str.prefix(tooltipMaxLen))
-        }
-
-        // The prefix is a real single-key shortcut (continuing the top-level
-        // sequence, or restarting at the head inside a submenu) — typing it
-        // pastes the memory at once, just like a history row.
-        MenuKeyRouter.assign(key: shortcutPrefix, to: menuItem)
-
-        return menuItem
-    }
-
-    private static func buildMemoryPromoteAlternate(
-        for item: ClipItem,
-        shortcutPrefix: String,
-        target: AnyObject,
-        action: Selector
-    ) -> NSMenuItem {
-        let maxLen = Defaults[.menuItemTitleMaxLength]
-        let shorterMax = max(20, maxLen - 6)
-        let truncatedTitle = String(item.title.prefix(shorterMax))
-        let displayTitle = shortcutPrefix.isEmpty
-            ? truncatedTitle
-            : "\(shortcutPrefix)  \(truncatedTitle)"
-
-        let titleStr = NSMutableAttributedString(string: "\(displayTitle)  ")
-        let attachment = NSTextAttachment()
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-        if let img = NSImage(systemSymbolName: "arrow.right.doc.on.clipboard", accessibilityDescription: "Move to Snippets")?
-            .withSymbolConfiguration(config) {
+        if let img = NSImage(systemSymbolName: glyph, accessibilityDescription: title) {
             img.isTemplate = true
-            attachment.image = img
+            menuItem.image = img
         }
-        titleStr.append(NSAttributedString(attachment: attachment))
-
-        let altItem = NSMenuItem(
-            title: "",
-            action: action,
-            keyEquivalent: ""
-        )
-        altItem.attributedTitle = titleStr
-        altItem.keyEquivalentModifierMask = .option
-        altItem.isAlternate = true
-        altItem.target = target
-        altItem.representedObject = item.id
-        return altItem
+        MenuKeyRouter.assign(key: key, to: menuItem)
+        return menuItem
     }
 }
 
@@ -529,11 +484,12 @@ struct ClipMenuBuilder {
 /// user-configurable `menuShortcutKeys` string.
 ///
 /// One ordered list drives the whole top level of the ⌘⇧V menu: the inline
-/// history rows take the first characters, and the folder rows continue past
-/// them — so a keystroke is never bound to two visible rows at once. Removing a
-/// character from the sequence (a digit, say) frees that keystroke, which lets
-/// AppKit type-selection jump to a snippet folder whose name starts with it
-/// instead of the row previously claiming the key.
+/// history rows take the first characters, the history folder rows continue
+/// past them, and the memory rows continue past those — so a keystroke is never
+/// bound to two visible rows at once. Removing a character from the sequence (a
+/// digit, say) frees that keystroke, which lets AppKit type-selection jump to a
+/// snippet folder whose name starts with it instead of the row previously
+/// claiming the key.
 enum MenuShortcutKeys {
     /// Digits first, then letters — matches AppKit's single-character key
     /// equivalents, so 10 distinct keys (1–9, 0) are usable before letters.
@@ -560,18 +516,16 @@ enum MenuShortcutKeys {
         return String(keys[index])
     }
 
-    /// How many slots of the shared sequence a top-level section of `itemCount`
-    /// items consumes: one per inline row plus one per overflow folder. The
-    /// memory section starts keying its rows from the history section's count, so
-    /// a keystroke is never claimed by both. `inlineCount == 0` means all items
-    /// are inline (history's convention); callers that collapse to a submenu at 0
-    /// (memory) pass their own resolved inline count.
+    /// How many top-level key slots a section of `itemCount` items consumes:
+    /// its inline rows plus one per folder. The memory section starts keying at
+    /// the history section's slot count, so no key is claimed by two rows.
+    /// `inlineCount == 0` means every row is inline (history's convention).
     static func topLevelSlots(itemCount: Int, inlineCount: Int, folderSize: Int) -> Int {
         guard itemCount > 0 else { return 0 }
         let inline = inlineCount == 0 ? itemCount : min(inlineCount, itemCount)
         let remaining = itemCount - inline
-        let folders = (remaining > 0 && folderSize > 0)
-            ? Int((Double(remaining) / Double(folderSize)).rounded(.up))
+        let folders = (folderSize > 0 && remaining > 0)
+            ? Int(ceil(Double(remaining) / Double(folderSize)))
             : 0
         return inline + folders
     }

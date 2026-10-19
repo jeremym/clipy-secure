@@ -1,3 +1,5 @@
+import AppKit
+import Defaults
 import GRDB
 import OSLog
 import SwiftUI
@@ -39,10 +41,13 @@ struct HistoryListView: View {
                         .contextMenu {
                             Button("Paste") { pasteItem(item) }
                             if item.isMemory {
-                                Button("Remove from Memory") { removeFromMemory(item) }
+                                Button("Forget") { forget(item) }
+                            } else {
+                                Button("Save to Memory") { saveToMemory(item) }
                             }
+                            Button("Send to Obsidian") { sendToObsidian(item) }
                             Divider()
-                            Button("Delete", role: .destructive) { deleteClip(item) }
+                            Button("Delete", role: .destructive) { deleteItem(item) }
                         }
                 }
                 .listStyle(.plain)
@@ -103,28 +108,6 @@ struct HistoryListView: View {
         }
     }
 
-    /// The safe home (per plan §6) for per-clip removal — a floating,
-    /// non-activating panel, so acting here never disturbs the target app's
-    /// focus the way a custom clip-menu item would. Closes review #2's gap: a
-    /// memorised secret can be forgotten or deleted outright.
-    private func removeFromMemory(_ item: ClipItem) {
-        do {
-            try databaseService.removeFromMemory(clipId: item.id)
-        } catch {
-            Logger.database.error("Failed to remove from memory: \(error.localizedDescription)")
-        }
-        refreshAfterMutation()
-    }
-
-    private func deleteClip(_ item: ClipItem) {
-        do {
-            try databaseService.deleteClip(id: item.id)
-        } catch {
-            Logger.database.error("Failed to delete clip: \(error.localizedDescription)")
-        }
-        refreshAfterMutation()
-    }
-
     /// The live observation refreshes the unfiltered list on its own; an active
     /// search holds a snapshot, so re-run it to reflect the change.
     private func refreshAfterMutation() {
@@ -147,5 +130,84 @@ struct HistoryListView: View {
             try? await Task.sleep(for: .milliseconds(100))
             pasteService.paste()
         }
+    }
+
+    // MARK: - Context-menu actions
+
+    private func saveToMemory(_ item: ClipItem) {
+        do {
+            try databaseService.setMemory(clipId: item.id)
+        } catch {
+            Logger.database.error("Failed to save to memory: \(error.localizedDescription)")
+        }
+        refreshAfterMutation()
+    }
+
+    private func forget(_ item: ClipItem) {
+        do {
+            try databaseService.removeFromMemory(clipId: item.id)
+        } catch {
+            Logger.database.error("Failed to forget memory item: \(error.localizedDescription)")
+        }
+        refreshAfterMutation()
+    }
+
+    private func deleteItem(_ item: ClipItem) {
+        do {
+            try databaseService.delete(clipId: item.id)
+        } catch {
+            Logger.database.error("Failed to delete clip: \(error.localizedDescription)")
+        }
+        refreshAfterMutation()
+    }
+
+    private func sendToObsidian(_ item: ClipItem) {
+        guard let options = ObsidianExportService.Options.current() else {
+            presentObsidianAlert(
+                title: String(localized: "No Obsidian vault configured"),
+                message: String(localized: "Choose a vault in Preferences \u{25B8} Obsidian first.")
+            )
+            return
+        }
+
+        // Fetch the full, decrypted clip so blob-backed clips export correctly.
+        let full: ClipItem
+        do {
+            full = try databaseService.fetchClipItem(id: item.id) ?? item
+        } catch {
+            Logger.database.error("Failed to fetch clip for Obsidian export: \(error.localizedDescription)")
+            full = item
+        }
+
+        do {
+            let url = try ObsidianExportService.export(full, options: options)
+            if Defaults[.obsidianRemoveFromMemory], full.isMemory {
+                do {
+                    try databaseService.removeFromMemory(clipId: full.id)
+                } catch {
+                    Logger.database.error("Failed to remove from memory after Obsidian export: \(error.localizedDescription)")
+                }
+            }
+            if Defaults[.obsidianOpenAfterSave],
+               let encoded = url.path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let obsidianURL = URL(string: "obsidian://open?path=\(encoded)") {
+                NSWorkspace.shared.open(obsidianURL)
+            }
+        } catch {
+            Logger.general.error("Obsidian export failed: \(error.localizedDescription)")
+            presentObsidianAlert(
+                title: String(localized: "Couldn't send to Obsidian"),
+                message: String(localized: "Check the vault folder in Preferences \u{25B8} Obsidian.")
+            )
+        }
+        refreshAfterMutation()
+    }
+
+    private func presentObsidianAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 }

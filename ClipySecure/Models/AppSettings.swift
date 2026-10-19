@@ -20,11 +20,27 @@ extension Defaults.Keys {
     static let storeTypes = Key<Set<String>>("storeTypes", default: Set(ClipContentType.allCases.map(\.rawValue)))
     static let pollingInterval = Key<Double>("pollingInterval", default: 0.5)
     static let hasCompletedOnboarding = Key<Bool>("hasCompletedOnboarding", default: false)
+    // First-run marker: example snippets are seeded exactly once, never re-seeded.
+    static let hasSeededExampleSnippets = Key<Bool>("hasSeededExampleSnippets", default: false)
     static let memorySnippetFolderName = Key<String>("memorySnippetFolderName", default: "Saved Memories")
     static let maxMemorySize = Key<Int>("maxMemorySize", default: 42)
+    static let showMemorySection = Key<Bool>("showMemorySection", default: true)
+    // 0 = never expire. When > 0, memory items older than this many days are
+    // dropped by DataCleanupService alongside history expiry.
+    static let memoryExpirationDays = Key<Int>("memoryExpirationDays", default: 0)
     static let numberOfMemoryItemsInline = Key<Int>("numberOfMemoryItemsInline", default: 2)
     static let numberOfItemsPerMemoryFolder = Key<Int>("numberOfItemsPerMemoryFolder", default: 40)
-    static let showMemorySection = Key<Bool>("showMemorySection", default: true)
+
+    // Obsidian export. A sanctioned plaintext exit — content written to the
+    // vault lands on disk unencrypted by explicit user action. See
+    // ObsidianExportService.
+    static let obsidianVaultPath = Key<String>("obsidianVaultPath", default: "")
+    static let obsidianSubfolder = Key<String>("obsidianSubfolder", default: "ClipySecure")
+    static let obsidianFilenameTemplate = Key<String>("obsidianFilenameTemplate", default: "{date} {title}")
+    static let obsidianFrontmatter = Key<Bool>("obsidianFrontmatter", default: true)
+    static let obsidianFenceCode = Key<Bool>("obsidianFenceCode", default: true)
+    static let obsidianOpenAfterSave = Key<Bool>("obsidianOpenAfterSave", default: false)
+    static let obsidianRemoveFromMemory = Key<Bool>("obsidianRemoveFromMemory", default: false)
 }
 
 extension ClipContentType: CaseIterable {

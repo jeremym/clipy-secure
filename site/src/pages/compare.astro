@@ -1,0 +1,108 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+
+type Cell = { text: string; kind?: "yes" | "unknown" };
+const yes = (text = "Yes"): Cell => ({ text, kind: "yes" });
+const no = (text = "No"): Cell => ({ text });
+const nv = (text = "Not verified"): Cell => ({ text, kind: "unknown" });
+const plain = (text: string): Cell => ({ text });
+
+const apps = ["Clipy Secure", "Clipy", "Maccy", "Paste", "Raycast"];
+
+const rows: { label: string; note?: number; cells: Cell[] }[] = [
+  { label: "Encryption at rest", cells: [yes(), no(), nv(), nv(), yes()] },
+  { label: "In-memory search index", cells: [yes(), nv(), nv(), nv(), nv()] },
+  { label: "Telemetry", cells: [yes("None"), no("Yes"), no("None"), nv(), no("Yes")], note: 1 },
+  { label: "Apple-notarized", note: 2, cells: [no("No"), nv(), nv(), yes("Yes"), nv()] },
+  { label: "App-sandboxed", note: 2, cells: [no("No"), nv(), nv(), nv(), nv()] },
+  { label: "Snippets", note: 3, cells: [yes(), yes(), nv(), yes(), yes()] },
+  { label: "Memory / keep tier", cells: [yes(), no(), nv(), nv(), nv()] },
+  { label: "Obsidian export", cells: [yes(), no(), no(), nv(), nv()] },
+  { label: "Price", note: 4, cells: [plain("Free"), plain("Free"), plain("Free"), plain("Paid"), plain("Freemium")] },
+  { label: "Open source", cells: [yes("Yes · MIT"), yes("Yes · MIT"), yes("Yes · MIT"), no(), no()] },
+];
+---
+
+<BaseLayout
+  title="Compare — Clipy Secure"
+  description="An honest comparison of Clipy Secure with Clipy, Maccy, Paste, and Raycast's clipboard history. Facts we could not verify are marked as such."
+  structuredData={false}
+>
+  <section class="page-intro" aria-labelledby="compare-title">
+    <h1 id="compare-title">How Clipy Secure compares</h1>
+    <p class="lede">
+      Clipy Secure's own column is drawn from its source code. For the other apps, cells are filled only from public,
+      primary sources; anything we could not confirm is marked <em>not verified</em> rather than guessed. Competitor
+      details were compiled in October 2026 and may change — corrections are welcome on
+      <a href="https://github.com/jeremym/clipy-secure">GitHub</a>.
+    </p>
+  </section>
+
+  <section class="document-section" aria-labelledby="table-title">
+    <div class="section-heading">
+      <h2 id="table-title">feature by feature</h2>
+      <hr />
+    </div>
+    <div class="compare-wrap">
+      <table class="compare-table">
+        <caption class="sr-only">Clipboard manager comparison across privacy, distribution, and feature dimensions</caption>
+        <thead>
+          <tr>
+            <th scope="col">Capability</th>
+            {apps.map((app, index) => (
+              <th scope="col" class={index === 0 ? "self-col" : undefined}>{app}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <th scope="row">{row.label}{row.note && <sup>{row.note}</sup>}</th>
+              {row.cells.map((cell, index) => (
+                <td class={[cell.kind, index === 0 ? "self-col" : ""].filter(Boolean).join(" ") || undefined}>
+                  {cell.text}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footnotes">
+      <p><sup>1</sup> Clipy ships Firebase Analytics (enabled by default) and Crashlytics, per its PRIVACY.md. Maccy's App Store listing states clipboard data never leaves the device, and the app is open source and auditable. Raycast's manifesto states it sends anonymous usage statistics and error logging; its clipboard history is encrypted on-device.</p>
+      <p><sup>2</sup> Clipy Secure is not notarized and not sandboxed <strong>by design</strong>: it is signed with a self-signed certificate rather than an Apple Developer ID, and App Sandbox is incompatible with acting as an Accessibility client. <a href={`${base}faq/`}>Why →</a></p>
+      <p><sup>3</sup> Paste groups saved items into "pinboards."</p>
+      <p><sup>4</sup> Maccy is free from GitHub/Homebrew; its App Store build is paid to support development. Paste is a paid subscription (about $29.99/year at the time of writing). Raycast's free tier includes clipboard history; Pro is a paid subscription.</p>
+    </div>
+  </section>
+
+  <section class="document-section prose" id="clipy" aria-labelledby="clipy-title">
+    <div class="section-heading">
+      <h2 id="clipy-title">relationship to clipy</h2>
+      <hr />
+    </div>
+    <p>
+      Clipy Secure began as "the Clipy I actually wanted to use," and it keeps Clipy's concept and its MIT license — but
+      it is <strong>an independent, ground-up rewrite</strong>, not a patched fork. It targets macOS 14+ in Swift 6 with
+      strict concurrency, and replaces Clipy's storage and services wholesale: a GRDB/SQLite store with field-level
+      AES-GCM encryption in place of an unencrypted database, an in-memory full-text index, keyed content hashes, and an
+      actor-based clipboard monitor.
+    </p>
+    <p>
+      The two most concrete, primary-sourced differences:
+    </p>
+    <ul>
+      <li><strong>Encryption at rest.</strong> Clipy's own privacy notes state it does not encrypt locally stored history; Clipy Secure encrypts every clip field before it reaches disk.</li>
+      <li><strong>No telemetry.</strong> Clipy ships Firebase analytics and crash reporting on by default; Clipy Secure contains no analytics, crash reporting, update check, or any networking at all.</li>
+    </ul>
+    <p>
+      To be fair to Clipy: it is <em>not</em> abandoned — it was actively revived in 2026 — and it remains a capable,
+      widely used clipboard manager. Clipy Secure simply makes a different trade: no Apple notarization and no sandbox,
+      in exchange for encryption at rest and zero network surface.
+    </p>
+    <p class="section-link"><a href={`${base}how-it-works/`}>how Clipy Secure works <span aria-hidden="true">→</span></a></p>
+  </section>
+</BaseLayout>

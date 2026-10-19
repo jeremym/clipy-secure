@@ -57,13 +57,26 @@ cd clipy-secure
 tccutil reset Accessibility com.clipysecure.app
 ```
 
+## Uninstalling
+
+If you installed with Homebrew:
+
+```bash
+brew uninstall --cask clipy-secure          # remove the app
+brew uninstall --cask --zap clipy-secure    # also delete history, memory, and settings
+```
+
+`--zap` trashes `~/Library/Application Support/com.clipysecure.app` and the preferences plist. The AES-GCM key stays in your login Keychain — delete the `ClipySecure` item in Keychain Access to remove it too. Installed from a zip or from source? Drag `ClipySecure.app` to the Trash and remove those paths plus the Keychain item by hand.
+
 ## What it does
 
 - **Clipboard history** in the menu bar, up to 32 items by default, covering text, RTF, RTFD, PDF, images, file paths, and URLs.
 - **Single-keystroke paste.** Open the menu and press `a` or `b` to paste the two most recent clips, or a digit to open a folder and another digit to paste from it. No Return, no arrow keys.
-- **Searchable history panel** with live full-text search and a right-click menu to paste, forget, or delete a clip.
-- **Snippets** — reusable text organised in folders, importable and exportable as XML.
-- **Memory** — keep clips you want held indefinitely, safe from history expiry, and promote any of them into a snippet folder. A short-term parking lot, not an archive.
+- **Per-row actions.** Hold ⌥ over a menu row for a three-item submenu. On a history row: Save to Memory (`m`), Send to Obsidian (`o`), Delete (`d`). On a memory row: Promote to Snippet (`m`), Send to Obsidian (`o`), Forget (`d`). By keyboard, ⌥ + the row's key opens its submenu, then `m` / `o` / `d`.
+- **Searchable history panel** with live full-text search and a right-click menu: paste, save to memory (or forget), send to Obsidian, or delete a clip.
+- **Snippets** — reusable text organised in folders, importable and exportable as XML. A few examples are added on first run to show how it works; delete them whenever.
+- **Memory** — keep clips you want held indefinitely, safe from history expiry, and promote any of them into a snippet folder. Never expires by default, with an optional expiry in days; a short-term parking lot, not an archive.
+- **Obsidian export** — send any clip to a chosen Obsidian vault as a Markdown note (optional frontmatter, code fence for non-Markdown, image/PDF attachments). Local file write only; Obsidian needn't be running.
 - **App exclusion** — name the apps whose clipboard content should never be recorded, such as a password manager.
 - Respects the system *concealed* pasteboard flag, so well-behaved password managers are ignored automatically.
 
@@ -75,7 +88,7 @@ tccutil reset Accessibility com.clipysecure.app
 - **No network features.** The app contains no telemetry, sync, update check, or other networking feature. Updates come through `brew upgrade`.
 - **Not sandboxed, deliberately.** Auto-paste posts a synthetic ⌘V through CGEvent, which is exactly the cross-application control App Sandbox exists to prevent — a sandboxed build never appears under Accessibility at all. Privacy here comes from encryption, not from the sandbox. This is also why upstream Clipy is not on the Mac App Store.
 
-**One honest exception:** snippets are stored in plain text. They are content you wrote and curate yourself, and they export as plaintext XML by design. Don't keep secrets in them.
+**Two deliberate exceptions.** Both move content out of the encrypted store only by your explicit action, never automatically and never over a network: **snippets** (plaintext XML you curate) and **Obsidian export** (a plain Markdown file in your vault). Don't keep secrets in either; everything else — all history and Memory — stays encrypted at rest.
 
 ## Verifying a release
 

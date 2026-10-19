@@ -26,9 +26,15 @@ struct PrivacySettingsView: View {
                 }
             }
 
-            Section("Privacy") {
+            Section {
                 Toggle("Respect concealed type (skip password manager entries)", isOn: $respectConcealedType)
                 Toggle("Overwrite duplicate history entries", isOn: $overwriteSameHistory)
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text("Clip content is encrypted at rest. The only ways it leaves the encrypted store are when you export it yourself: snippet export (plain XML) and Obsidian export (plain Markdown). Both are deliberate, local, and never touch the network.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Danger Zone") {

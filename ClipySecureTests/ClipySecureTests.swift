@@ -135,6 +135,11 @@ final class MemoryMenuKeyTests: XCTestCase {
         (0..<count).map { ClipItem(stringValue: "clip \($0)") }
     }
 
+    private func noopActions() -> ClipMenuBuilder.RowActions {
+        let noop = Selector(("noop:"))
+        return ClipMenuBuilder.RowActions(paste: noop, primary: noop, obsidian: noop, destructive: noop, openSubmenu: noop)
+    }
+
     @MainActor
     func testHistoryReturnsNextFreeKeyIndex() {
         withMenuDefaults {
@@ -143,8 +148,7 @@ final class MemoryMenuKeyTests: XCTestCase {
                 to: menu,
                 items: items(32),
                 target: NSObject(),
-                pasteAction: Selector(("noop:")),
-                memoryAction: Selector(("noop:")),
+                actions: noopActions(),
                 folderAction: Selector(("noop:"))
             )
             // 5 inline + 3 folders of 10 = 8.
@@ -163,17 +167,17 @@ final class MemoryMenuKeyTests: XCTestCase {
             ClipMenuBuilder.addMemoryItems(
                 to: menu,
                 items: items(5),
-                startingKeyIndex: 8,
                 target: NSObject(),
-                pasteAction: Selector(("noop:")),
-                promoteAction: Selector(("noop:")),
-                folderAction: Selector(("noop:"))
+                actions: noopActions(),
+                folderAction: Selector(("noop:")),
+                keyOffset: 8
             )
 
-            // items[0] is the "Memory" header; inline base rows follow, each
-            // trailed by its ⌥ alternate (which carries no key of its own).
-            XCTAssertEqual(menu.items[1].identifier?.rawValue, keyPrefix + "9")
-            XCTAssertEqual(menu.items[3].identifier?.rawValue, keyPrefix + "0")
+            // Each inline row's single-key paste rides on a hidden opener; with
+            // history consuming slots 0–7, memory inline keys are "9" then "0".
+            let ids = menu.items.compactMap { $0.identifier?.rawValue }
+            XCTAssertTrue(ids.contains(keyPrefix + "9"))
+            XCTAssertTrue(ids.contains(keyPrefix + "0"))
         }
     }
 
@@ -187,18 +191,19 @@ final class MemoryMenuKeyTests: XCTestCase {
             ClipMenuBuilder.addMemoryItems(
                 to: menu,
                 items: items(5),
-                startingKeyIndex: 8,
                 target: NSObject(),
-                pasteAction: Selector(("noop:")),
-                promoteAction: Selector(("noop:")),
-                folderAction: Selector(("noop:"))
+                actions: noopActions(),
+                folderAction: Selector(("noop:")),
+                keyOffset: 8
             )
 
             // header, then the single Memory ▸ submenu row (no inline rows).
             let submenuRow = menu.items.first { $0.submenu != nil }
             XCTAssertNotNil(submenuRow, "0 inline should collapse to one Memory submenu")
-            // Rows inside restart the sequence at the head: first row is "1".
-            XCTAssertEqual(submenuRow?.submenu?.items.first?.identifier?.rawValue, keyPrefix + "1")
+            // Rows inside restart the sequence at the head: the first row's paste
+            // opener carries key "1".
+            let innerIds = submenuRow?.submenu?.items.compactMap { $0.identifier?.rawValue } ?? []
+            XCTAssertTrue(innerIds.contains(keyPrefix + "1"))
         }
     }
 }
@@ -669,6 +674,38 @@ final class DatabaseServiceTests: XCTestCase {
         let afterRemove = try db.isAppExcluded(bundleId: "com.test.app")
         XCTAssertFalse(afterRemove)
     }
+
+    func testDeleteClipRemovesRowAndSearchEntry() throws {
+        let db = try makeService()
+        let keep = ClipItem(stringValue: "keep this clip")
+        let drop = ClipItem(stringValue: "drop unique-token-delete")
+        try db.save(clip: keep)
+        try db.save(clip: drop)
+
+        try db.delete(clipId: drop.id)
+
+        let items = try db.fetchHistory(limit: 100)
+        XCTAssertTrue(items.contains { $0.id == keep.id })
+        XCTAssertFalse(items.contains { $0.id == drop.id })
+        // Search index entry is gone too.
+        XCTAssertTrue(try db.searchClips(query: "unique-token-delete").isEmpty)
+    }
+
+    func testRemoveFromMemoryClearsFlag() throws {
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "memorized then forgotten")
+        try db.save(clip: clip)
+        try db.setMemory(clipId: clip.id)
+        XCTAssertTrue(try db.fetchClipItem(id: clip.id)?.isMemory ?? false)
+
+        try db.removeFromMemory(clipId: clip.id)
+
+        let item = try XCTUnwrap(db.fetchClipItem(id: clip.id))
+        XCTAssertFalse(item.isMemory)
+        XCTAssertNil(item.memorizedAt)
+        // The clip itself survives — it just leaves the Memory tier.
+        XCTAssertTrue(try db.fetchHistory(limit: 100).contains { $0.id == clip.id })
+    }
 }
 
 final class SecurityFixTests: XCTestCase {
@@ -729,6 +766,393 @@ final class SecurityFixTests: XCTestCase {
         XCTAssertEqual(try cleanup.enforceLimit(2), 3)
         XCTAssertEqual(try db.fetchHistory(limit: 10).count, 2)
         XCTAssertEqual(try cleanup.enforceLimit(2), 0)
+    }
+}
+
+final class MemoryCleanupTests: XCTestCase {
+
+    private func makeStack() throws -> (DatabaseService, DatabaseQueue, DataCleanupService) {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        let db = try DatabaseService(dbQueue: dbQueue)
+        let cleanup = DataCleanupService(dbQueue: dbQueue)
+        return (db, dbQueue, cleanup)
+    }
+
+    /// Saves a clip and marks it as a memory item with an explicit
+    /// `memorizedAt` so ordering/expiry are deterministic in tests.
+    @discardableResult
+    private func saveMemory(
+        _ db: DatabaseService,
+        _ dbQueue: DatabaseQueue,
+        text: String,
+        memorizedAt: Date,
+        pinned: Bool = false
+    ) throws -> String {
+        let clip = ClipItem(stringValue: text)
+        try db.save(clip: clip)
+        try dbQueue.write { d in
+            try d.execute(
+                sql: "UPDATE clipItem SET isMemory = 1, memorizedAt = ?, isPinned = ? WHERE id = ?",
+                arguments: [memorizedAt, pinned, clip.id]
+            )
+        }
+        return clip.id
+    }
+
+    private func memoryItems(_ db: DatabaseService) throws -> [ClipItem] {
+        try db.fetchHistory(limit: 1000).filter(\.isMemory)
+    }
+
+    func testEnforceMemoryLimitDropsOldest() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var ids: [String] = []
+        for i in 0..<5 {
+            ids.append(try saveMemory(db, dbQueue, text: "mem \(i)", memorizedAt: base.addingTimeInterval(Double(i))))
+        }
+
+        XCTAssertEqual(try cleanup.enforceMemoryLimit(2), 3)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        // The two newest (i == 3, 4) survive; the three oldest are dropped.
+        XCTAssertEqual(remaining, Set([ids[3], ids[4]]))
+    }
+
+    func testEnforceMemoryLimitPreservesPinned() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        // Oldest item is pinned — it must survive even though it is over the cap.
+        let pinnedOld = try saveMemory(db, dbQueue, text: "pinned old", memorizedAt: base, pinned: true)
+        _ = try saveMemory(db, dbQueue, text: "mid", memorizedAt: base.addingTimeInterval(10))
+        let newest = try saveMemory(db, dbQueue, text: "newest", memorizedAt: base.addingTimeInterval(20))
+
+        try cleanup.enforceMemoryLimit(1)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        // Pinned (outside the cap) + the single newest non-pinned item.
+        XCTAssertEqual(remaining, Set([pinnedOld, newest]))
+    }
+
+    func testEnforceMemoryLimitLeavesHistoryUntouched() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<3 {
+            try saveMemory(db, dbQueue, text: "mem \(i)", memorizedAt: base.addingTimeInterval(Double(i)))
+        }
+        for i in 0..<4 {
+            try db.save(clip: ClipItem(stringValue: "history \(i)"))
+        }
+
+        try cleanup.enforceMemoryLimit(1)
+
+        let historyCount = try db.fetchHistory(limit: 1000).filter { !$0.isMemory }.count
+        XCTAssertEqual(historyCount, 4, "Plain history rows must not be touched by the memory cap")
+    }
+
+    func testDeleteExpiredMemoryDropsPastCutoff() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let now = Date()
+        let old = try saveMemory(db, dbQueue, text: "old", memorizedAt: now.addingTimeInterval(-10 * 86_400))
+        let fresh = try saveMemory(db, dbQueue, text: "fresh", memorizedAt: now.addingTimeInterval(-1 * 86_400))
+
+        XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 1)
+
+        let remaining = Set(try memoryItems(db).map(\.id))
+        XCTAssertEqual(remaining, Set([fresh]))
+        XCTAssertFalse(remaining.contains(old))
+    }
+
+    func testDeleteExpiredMemoryPreservesPinned() throws {
+        let (db, dbQueue, cleanup) = try makeStack()
+        let now = Date()
+        let pinnedOld = try saveMemory(
+            db, dbQueue, text: "pinned old", memorizedAt: now.addingTimeInterval(-30 * 86_400), pinned: true
+        )
+
+        XCTAssertEqual(try cleanup.deleteExpiredMemory(olderThan: 7 * 86_400), 0)
+        XCTAssertTrue(try memoryItems(db).map(\.id).contains(pinnedOld))
+    }
+}
+
+final class ClipMenuBuilderTests: XCTestCase {
+
+    // The builder reads layout settings from Defaults; pin them to known values
+    // so the tests don't depend on the host machine's customizations.
+    private var saved: (keys: String, inline: Int, folder: Int, maxHistory: Int, memInline: Int, memFolder: Int, maxMem: Int)!
+
+    override func setUp() {
+        super.setUp()
+        saved = (
+            Defaults[.menuShortcutKeys], Defaults[.numberOfItemsInline], Defaults[.numberOfItemsInFolder],
+            Defaults[.maxHistorySize], Defaults[.numberOfMemoryItemsInline], Defaults[.numberOfItemsPerMemoryFolder],
+            Defaults[.maxMemorySize]
+        )
+        Defaults[.menuShortcutKeys] = MenuShortcutKeys.default
+        Defaults[.numberOfItemsInline] = 5
+        Defaults[.numberOfItemsInFolder] = 10
+        Defaults[.maxHistorySize] = 32
+        Defaults[.numberOfMemoryItemsInline] = 2
+        Defaults[.numberOfItemsPerMemoryFolder] = 40
+        Defaults[.maxMemorySize] = 42
+    }
+
+    override func tearDown() {
+        Defaults[.menuShortcutKeys] = saved.keys
+        Defaults[.numberOfItemsInline] = saved.inline
+        Defaults[.numberOfItemsInFolder] = saved.folder
+        Defaults[.maxHistorySize] = saved.maxHistory
+        Defaults[.numberOfMemoryItemsInline] = saved.memInline
+        Defaults[.numberOfItemsPerMemoryFolder] = saved.memFolder
+        Defaults[.maxMemorySize] = saved.maxMem
+        super.tearDown()
+    }
+
+    private func actions() -> ClipMenuBuilder.RowActions {
+        ClipMenuBuilder.RowActions(
+            paste: Selector(("paste:")),
+            primary: Selector(("primary:")),
+            obsidian: Selector(("obsidian:")),
+            destructive: Selector(("destructive:")),
+            openSubmenu: Selector(("openSubmenu:"))
+        )
+    }
+
+    private func actionSubmenu(in menu: NSMenu) throws -> NSMenu {
+        let alt = try XCTUnwrap(menu.items.first { $0.isAlternate && $0.hasSubmenu })
+        return try XCTUnwrap(alt.submenu)
+    }
+
+    @MainActor
+    func testHistoryRowOwnsThreeItemActionSubmenu() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "history one")
+        ClipMenuBuilder.addHistoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:"))
+        )
+
+        let submenu = try actionSubmenu(in: menu)
+        XCTAssertEqual(submenu.items.map(\.title), ["Save to Memory", "Send to Obsidian", "Delete"])
+        XCTAssertEqual(submenu.items.compactMap { $0.representedObject as? String }, Array(repeating: item.id, count: 3))
+        XCTAssertEqual(submenu.items.compactMap { $0.identifier?.rawValue }, ["clipkey:m", "clipkey:o", "clipkey:d"])
+    }
+
+    @MainActor
+    func testMemoryRowSubmenuUsesMemoryLabels() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "memory one")
+        ClipMenuBuilder.addMemoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:")), keyOffset: 5
+        )
+
+        let submenu = try actionSubmenu(in: menu)
+        XCTAssertEqual(submenu.items.map(\.title), ["Promote to Snippet", "Send to Obsidian", "Forget"])
+    }
+
+    @MainActor
+    func testHistoryRowEmitsPlainAndOptionOpeners() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "history one")
+        ClipMenuBuilder.addHistoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:"))
+        )
+
+        let identifiers = menu.items.compactMap { $0.identifier?.rawValue }
+        // Default key sequence starts at "1": a plain-key paste opener and an
+        // ⌥-key submenu opener, both hidden.
+        XCTAssertTrue(identifiers.contains("clipkey:1"))
+        XCTAssertTrue(identifiers.contains("clipkey-opt:1"))
+        let openers = menu.items.filter { ($0.identifier?.rawValue.hasPrefix("clipkey") ?? false) && $0.isHidden }
+        XCTAssertEqual(openers.count, 2)
+    }
+
+    @MainActor
+    func testInlineMemoryContinuesKeySequenceAfterHistory() throws {
+        let menu = NSMenu()
+        let item = ClipItem(stringValue: "memory one")
+        // keyOffset 5 → the inline memory row's paste opener is keyed to "6"
+        // (sequence index 5 of the default "1234567890…").
+        ClipMenuBuilder.addMemoryItems(
+            to: menu, items: [item], target: NSObject(),
+            actions: actions(), folderAction: Selector(("folder:")), keyOffset: 5
+        )
+        let identifiers = menu.items.compactMap { $0.identifier?.rawValue }
+        XCTAssertTrue(identifiers.contains("clipkey:6"))
+        XCTAssertFalse(identifiers.contains("clipkey:1"), "Memory row must not reuse a history key")
+    }
+}
+
+final class SeedServiceTests: XCTestCase {
+
+    private func makeService() throws -> DatabaseService {
+        let dbQueue = try DatabaseQueue(configuration: Configuration())
+        return try DatabaseService(dbQueue: dbQueue)
+    }
+
+    func testSeedExamplesInsertsFolderAndSnippets() throws {
+        let db = try makeService()
+        try SeedService.seedExamples(into: db)
+
+        let folders = try db.fetchFolders()
+        let examples = try XCTUnwrap(folders.first { $0.title == SeedService.exampleFolderTitle })
+        let snippets = try db.fetchSnippets(inFolder: examples.id)
+        XCTAssertEqual(snippets.map(\.title), SeedService.exampleSnippets.map(\.title))
+        XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
+    }
+
+    // Pure decision logic — deterministic, no global Defaults, no test-order
+    // coupling. Seed only on a truly first run with an empty store.
+    func testShouldSeedOnlyWhenUnseededAndEmpty() {
+        XCTAssertTrue(SeedService.shouldSeed(alreadySeeded: false, storeEmpty: true))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: true, storeEmpty: true))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: false, storeEmpty: false))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: true, storeEmpty: false))
+    }
+
+    func testSnippetStoreEmptyReflectsContents() throws {
+        let db = try makeService()
+        XCTAssertTrue(try db.isSnippetStoreEmpty())
+
+        let folder = SnippetFolder(title: "My Stuff", sortIndex: 0)
+        try db.saveFolder(folder)
+        XCTAssertFalse(try db.isSnippetStoreEmpty(), "A folder alone makes the store non-empty")
+    }
+}
+
+final class ObsidianExportServiceTests: XCTestCase {
+
+    private var vaultURL: URL!
+
+    override func setUpWithError() throws {
+        vaultURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("obsidian-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultURL, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: vaultURL)
+    }
+
+    private func options(frontmatter: Bool = true, fence: Bool = true, subfolder: String = "ClipySecure") -> ObsidianExportService.Options {
+        ObsidianExportService.Options(
+            vaultURL: vaultURL,
+            subfolder: subfolder,
+            filenameTemplate: "{date} {title}",
+            includeFrontmatter: frontmatter,
+            fenceNonMarkdown: fence
+        )
+    }
+
+    private func read(_ url: URL) throws -> String {
+        try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testTextNoteWritesIntoSubfolderWithFrontmatter() throws {
+        let clip = ClipItem(stringValue: "plain clipboard text")
+        let url = try ObsidianExportService.export(clip, options: options())
+
+        XCTAssertEqual(url.pathExtension, "md")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "ClipySecure")
+        let body = try read(url)
+        XCTAssertTrue(body.hasPrefix("---"))
+        XCTAssertTrue(body.contains("tags: [clipysecure]"))
+        XCTAssertTrue(body.contains("type: string"))
+        XCTAssertTrue(body.contains("plain clipboard text"))
+    }
+
+    func testFrontmatterOffOmitsHeader() throws {
+        let clip = ClipItem(stringValue: "no frontmatter please")
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertFalse(body.hasPrefix("---"))
+        XCTAssertTrue(body.contains("no frontmatter please"))
+    }
+
+    func testNonMarkdownTextIsFenced() throws {
+        let clip = ClipItem(stringValue: "just one plain line")
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false, fence: true))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("```\njust one plain line\n```"))
+    }
+
+    func testMarkdownTextIsNotFenced() throws {
+        let markdown = "# Heading\n\n- a bullet\n- another"
+        let clip = ClipItem(stringValue: markdown)
+        let url = try ObsidianExportService.export(clip, options: options(frontmatter: false, fence: true))
+        let body = try read(url)
+        XCTAssertFalse(body.contains("```"), "Markdown content must not be wrapped in a code fence")
+        XCTAssertTrue(body.contains("# Heading"))
+    }
+
+    func testURLBecomesMarkdownLink() throws {
+        let content = ClipContent(
+            primaryType: .url, stringValue: "https://example.com",
+            rtfData: nil, pdfData: nil, imageData: nil, thumbnailData: nil, filenames: nil,
+            urls: ["https://example.com"], sourceAppId: nil, types: [.url]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        XCTAssertTrue(try read(url).contains("[https://example.com](https://example.com)"))
+    }
+
+    func testFilenamesBecomeBulletList() throws {
+        let content = ClipContent(
+            primaryType: .filenames, stringValue: nil,
+            rtfData: nil, pdfData: nil, imageData: nil, thumbnailData: nil,
+            filenames: ["/tmp/a.txt", "/tmp/b.png"], urls: nil, sourceAppId: nil, types: [.filenames]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("- `/tmp/a.txt`"))
+        XCTAssertTrue(body.contains("- `/tmp/b.png`"))
+    }
+
+    func testImageWritesPngAttachmentAndEmbed() throws {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )
+        let tiff = try XCTUnwrap(rep?.tiffRepresentation)
+        let content = ClipContent(
+            primaryType: .tiff, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: tiff, thumbnailData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.tiff]
+        )
+        let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
+        let body = try read(url)
+        XCTAssertTrue(body.contains("![["), "Image note should embed an attachment")
+        XCTAssertTrue(body.contains(".png]]"))
+
+        let attachments = url.deletingLastPathComponent().appendingPathComponent("attachments")
+        let files = try FileManager.default.contentsOfDirectory(atPath: attachments.path)
+        XCTAssertEqual(files.filter { $0.hasSuffix(".png") }.count, 1)
+    }
+
+    func testCollisionGetsSuffixNeverOverwrites() throws {
+        let clip = ClipItem(stringValue: "same title content")
+        let first = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+        let second = try ObsidianExportService.export(clip, options: options(frontmatter: false))
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(second.deletingPathExtension().lastPathComponent.hasSuffix("(2)"))
+        // Both files still exist — the first was never overwritten.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+    }
+
+    func testEmptyContentThrows() throws {
+        let content = ClipContent(
+            primaryType: .string, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: nil, thumbnailData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.string]
+        )
+        XCTAssertThrowsError(try ObsidianExportService.export(ClipItem(content: content), options: options()))
+    }
+
+    func testFilenameUsesIsoDate() throws {
+        let clip = ClipItem(stringValue: "dated note")
+        let name = ObsidianExportService.fileName(for: clip, template: "{date} {title}")
+        XCTAssertNotNil(name.range(of: "^\\d{4}-\\d{2}-\\d{2} ", options: .regularExpression))
     }
 }
 

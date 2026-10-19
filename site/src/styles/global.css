@@ -276,10 +276,220 @@ figcaption {
   margin-top: 1rem;
 }
 
+/* --- Interior pages (install / how-it-works / compare / faq) --- */
+
+.page-intro {
+  padding-top: clamp(2.75rem, 7vw, 4.5rem);
+  max-width: 40rem;
+}
+
+.page-intro h1 {
+  font-size: clamp(1.55rem, 1.35rem + 0.9vw, 1.95rem);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+
+.page-intro .lede {
+  margin-top: 1rem;
+  color: var(--color-muted);
+}
+
+.prose p {
+  max-width: 42rem;
+}
+
+.prose p + p,
+.prose ul + p,
+.prose p + ul,
+.prose p + pre,
+.prose pre + p {
+  margin-top: 1rem;
+}
+
+.prose ul {
+  max-width: 42rem;
+  margin-block: 0;
+  padding-left: 1.2rem;
+}
+
+.prose li + li {
+  margin-top: 0.3rem;
+}
+
+.prose code {
+  padding: 0.05em 0.3em;
+  background: rgba(8, 127, 109, 0.09);
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.command-block {
+  overflow-x: auto;
+  margin-block: 1.2rem;
+  border-block: 1px solid var(--color-rule);
+  padding-block: 1.1rem;
+  font-size: clamp(0.74rem, 0.66rem + 0.32vw, 0.86rem);
+  line-height: 1.85;
+  tab-size: 2;
+}
+
+.command-block code {
+  background: none;
+  padding: 0;
+}
+
+/* Numbered install steps */
+.steps {
+  margin-block: 0;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps > li {
+  position: relative;
+  max-width: 42rem;
+  padding-left: 2.2rem;
+  counter-increment: step;
+}
+
+.steps > li + li {
+  margin-top: 1.1rem;
+}
+
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.05em;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-rule);
+  border-radius: 50%;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+}
+
+/* Comparison table */
+.compare-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 42rem;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: top;
+}
+
+.compare-table thead th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-text);
+}
+
+.compare-table tbody th {
+  font-weight: 400;
+}
+
+.compare-table td.yes {
+  color: var(--color-accent);
+}
+
+.compare-table td.unknown {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.compare-table col.self-col,
+.compare-table .self-col {
+  background: rgba(8, 127, 109, 0.06);
+}
+
+/* FAQ */
+.faq-item {
+  max-width: 42rem;
+  border-bottom: 1px solid var(--color-rule);
+  padding-block: 1.1rem;
+}
+
+.faq-item h3 {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.faq-item p + p {
+  margin-top: 0.7rem;
+}
+
+/* Memory ladder (home + how-it-works) */
+.ladder {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 40rem;
+  margin-top: 0.5rem;
+}
+
+.ladder li {
+  list-style: none;
+}
+
+.ladder ol {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.ladder .rung {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.3rem 1rem;
+  border-left: 2px solid var(--color-accent);
+  padding: 0.35rem 0 0.35rem 1rem;
+}
+
+.ladder .rung dt {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.ladder .rung dd {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.ladder .arrow {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  padding-left: 1rem;
+}
+
 @media (max-width: 37rem) {
   .site-shell {
     width: calc(100% - 2rem);
     margin-inline: 1rem;
+  }
+
+  .ladder .rung {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
   }
 
   .intro {

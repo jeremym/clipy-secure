@@ -17,6 +17,7 @@ final class MenuKeyRouter: NSObject, NSMenuDelegate {
     static let shared = MenuKeyRouter()
 
     private static let identifierPrefix = "clipkey:"
+    private static let optionIdentifierPrefix = "clipkey-opt:"
 
     /// Menus open right now, outermost first. Only the last one holds live keys.
     private var openMenus: [NSMenu] = []
@@ -30,9 +31,22 @@ final class MenuKeyRouter: NSObject, NSMenuDelegate {
         item.identifier = NSUserInterfaceItemIdentifier(identifierPrefix + key.lowercased())
     }
 
+    /// Like `assign`, but the item fires on **⌥ + key**. Used by the hidden
+    /// per-row openers that pop up a row's three-item action submenu — ⌥+key is
+    /// free because the plain key already pastes that row.
+    static func assignOption(key: String, to item: NSMenuItem) {
+        guard key.count == 1 else { return }
+        item.identifier = NSUserInterfaceItemIdentifier(optionIdentifierPrefix + key.lowercased())
+    }
+
     private static func key(for item: NSMenuItem) -> String? {
         guard let raw = item.identifier?.rawValue, raw.hasPrefix(identifierPrefix) else { return nil }
         return String(raw.dropFirst(identifierPrefix.count))
+    }
+
+    private static func optionKey(for item: NSMenuItem) -> String? {
+        guard let raw = item.identifier?.rawValue, raw.hasPrefix(optionIdentifierPrefix) else { return nil }
+        return String(raw.dropFirst(optionIdentifierPrefix.count))
     }
 
     /// Makes `submenu` participate in single-key firing. The root menu keeps its
@@ -71,6 +85,19 @@ final class MenuKeyRouter: NSObject, NSMenuDelegate {
 
     private func setKeysActive(_ active: Bool, in menu: NSMenu) {
         for (index, item) in menu.items.enumerated() {
+            // Hidden ⌥+key openers (per-row action submenus): fire on ⌥ + key.
+            if let optKey = Self.optionKey(for: item) {
+                item.keyEquivalent = active ? optKey : ""
+                item.keyEquivalentModifierMask = .option
+                continue
+            }
+
+            // An alternate that owns a submenu can't hold a key equivalent
+            // (AppKit strips it), so it stays keyless and pairs with its keyless
+            // base purely via isAlternate. Its ⌥+key keyboard path lives on a
+            // hidden opener instead. Leave it alone.
+            if item.isAlternate, item.hasSubmenu { continue }
+
             // An alternate only stays paired with the item above it while both
             // carry the same key equivalent and differ by modifier, so it has to
             // track its base item rather than carry a key of its own.
