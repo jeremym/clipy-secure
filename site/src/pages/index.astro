@@ -12,8 +12,9 @@ const features = [
   ["history", "text, images, files, links, and rich documents"],
   ["paste", "open the menu and press the digit beside a clip"],
   ["search", "full-text index rebuilt in memory at launch"],
-  ["memory", "keep selected clips, safe from history expiry"],
+  ["memory", "keep selected clips, safe from history cleanup"],
   ["snippets", "reusable text saved in folders"],
+  ["obsidian", "send any clip to your vault as a Markdown note"],
   ["exclusions", "ignore selected apps and concealed content"],
 ];
 
@@ -23,7 +24,7 @@ const privacyDetails = [
   ["search index", "memory only; no plaintext index on disk"],
   ["networking", "no telemetry, sync, update check, or networking feature"],
   ["duplicates", "detected with keyed content hashes"],
-  ["snippets", "plaintext by design; do not store secrets in them"],
+  ["plaintext exits", "only snippets and Obsidian export, and only by your choice"],
 ];
 ---
 
@@ -36,8 +37,8 @@ const privacyDetails = [
     <p class="tagline">Encrypted clipboard history for macOS.</p>
     <p class="introduction">
       Clipy Secure keeps copied text, images, files, and links close at hand, and gives every clip a next step: paste
-      it, keep it for a while, or make it a snippet. Clipboard history is encrypted locally, search stays in memory,
-      and the app has no telemetry, sync, or update check.
+      it, keep it for a while, make it a snippet, or send it to Obsidian. Clipboard history is encrypted locally, search
+      stays in memory, and the app has no telemetry, sync, or update check.
     </p>
     <nav class="text-actions" aria-label="Get Clipy Secure">
       <a href={`${base}install/`}>install</a>
@@ -78,14 +79,14 @@ const privacyDetails = [
             <dd>everything you copy, encrypted, expiring on its own (30 days by default).</dd>
           </dl>
         </li>
-        <li aria-hidden="true"><span class="arrow">↓ hold ⌥ on a history row</span></li>
+        <li aria-hidden="true"><span class="arrow">↓ hold ⌥, press m</span></li>
         <li>
           <dl class="rung">
             <dt>memory</dt>
-            <dd>clips you choose to keep — a parking lot that never expires.</dd>
+            <dd>clips you choose to keep — a parking lot that never expires (or set an expiry).</dd>
           </dl>
         </li>
-        <li aria-hidden="true"><span class="arrow">↓ hold ⌥ on a memory row</span></li>
+        <li aria-hidden="true"><span class="arrow">↓ hold ⌥, press m</span></li>
         <li>
           <dl class="rung">
             <dt>snippets</dt>
@@ -94,6 +95,10 @@ const privacyDetails = [
         </li>
       </ol>
     </div>
+    <p class="introduction">
+      Any clip can also leave for your <strong>Obsidian</strong> vault — hold <kbd>⌥</kbd>, press <kbd>o</kbd> — landing
+      as a Markdown note.
+    </p>
     <p class="section-link"><a href={`${base}how-it-works/`}>how each tier works <span aria-hidden="true">→</span></a></p>
   </section>
 

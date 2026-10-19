@@ -72,13 +72,15 @@ brew uninstall --cask --zap clipy-secure    # also delete history, memory, and s
 
 - **Clipboard history** in the menu bar — up to 32 items by default, covering text, RTF, RTFD, PDF, images, file paths, and URLs.
 - **Single-keystroke paste.** Open the menu and press the digit shown beside a clip to paste it instantly. The most recent clips are `1`, `2`, `3`…; older ones group into numbered folders you open with a digit and paste from with another. No Return, no arrow keys. The key set is configurable (digits by default).
-- **Searchable history panel** with live full-text search.
-- **Snippets** — reusable text organised in folders, importable and exportable as XML.
-- **Memory** — a parking lot between history and snippets. Hold ⌥ over a history row to keep that clip indefinitely, safe from history expiry; hold ⌥ over a remembered clip to promote it into a snippet folder.
+- **Per-row actions.** Hold ⌥ over any menu row to reveal a three-item submenu. On a history row: **Save to Memory** (`m`), **Send to Obsidian** (`o`), **Delete** (`d`). On a memory row: **Promote to Snippet** (`m`), **Send to Obsidian** (`o`), **Forget** (`d`). By keyboard, press ⌥ + the row's key to open its submenu, then `m` / `o` / `d`.
+- **Searchable history panel** with live full-text search, and a right-click menu on each result — Paste, Save to Memory (or Forget), Send to Obsidian, Delete.
+- **Snippets** — reusable text organised in folders, importable and exportable as XML. A few example snippets are added on first run to show how the app works; delete them whenever.
+- **Memory** — a parking lot between history and snippets. Keep the clips you want to hold onto; by default they never expire, but you can set an optional expiry (in days), and the most recent are kept up to a configurable cap. The whole section can be hidden if you don't use it.
+- **Obsidian export** — send any clip to a chosen Obsidian vault as a Markdown note, with optional YAML frontmatter and a code fence for non-Markdown. Local file write only; Obsidian doesn't need to be running.
 - **App exclusion** — name the apps whose clipboard content should never be recorded, such as a password manager.
 - Respects the system *concealed* pasteboard flag, so well-behaved password managers are ignored automatically.
 
-The three tiers form a ladder: **History** (everything you copy, expiring on its own) → **Memory** (clips you choose to keep) → **Snippets** (curated, reusable text). [How it works →](https://jeremym.github.io/clipy-secure/how-it-works/)
+The tiers form a ladder: **History** (everything you copy, expiring on its own) → **Memory** (clips you choose to keep) → **Snippets** (curated, reusable text) or **Obsidian** (filed into your vault). [How it works →](https://jeremym.github.io/clipy-secure/how-it-works/)
 
 ## How the privacy works
 
@@ -88,7 +90,12 @@ The three tiers form a ladder: **History** (everything you copy, expiring on its
 - **No network features.** The app contains no telemetry, sync, update check, or other networking feature.
 - **Not sandboxed, deliberately.** Auto-paste posts a synthetic ⌘V through CGEvent, which is exactly the cross-application control App Sandbox exists to prevent — a sandboxed build never appears under Accessibility at all. Privacy here comes from encryption, not from the sandbox. This is also why upstream Clipy is not on the Mac App Store.
 
-**One honest exception:** snippets are stored in plain text. They are content you wrote and curate yourself, and they export as plaintext XML by design. Don't keep secrets in them.
+**Two deliberate exceptions.** Both move content out of the encrypted store only by your explicit action, never automatically, and never over a network:
+
+- **Snippets** are stored in plain text. They are content you wrote and curate yourself, and they export as plaintext XML by design.
+- **Obsidian export** writes a clip into your vault as a plain Markdown file when you choose *Send to Obsidian*.
+
+Don't keep secrets in either. Everything else — all of clipboard history and Memory — stays encrypted at rest.
 
 ## Verifying a release
 

@@ -41,7 +41,14 @@ const faqs = [
     q: "Where does my data live?",
     a: [
       "Your clipboard history is an encrypted SQLite database under <code>~/Library/Application Support/com.clipysecure.app</code>. Settings are in <code>~/Library/Preferences/com.clipysecure.app.plist</code>. The AES-GCM encryption key is kept in your login Keychain as an item named <strong>ClipySecure</strong> — so even the database file on disk is unreadable without it.",
-      "Snippets are the one exception: they are stored in plain text by design, because they are content you curate and export yourself. Don't keep secrets in snippets.",
+      "Two things are kept in plain text by design, because they are content you curate and export yourself: snippets, and any clip you deliberately send to Obsidian. Don't keep secrets in either.",
+    ],
+  },
+  {
+    q: "What is the Obsidian export, and is it safe?",
+    a: [
+      "Holding ⌥ on any clip — or right-clicking a result in the search panel — offers <strong>Send to Obsidian</strong>, which writes that clip into a vault folder you choose as a Markdown note. It is a plain local file write: Obsidian need not be running, and nothing is sent over a network.",
+      "It is one of exactly two ways content leaves the encrypted store, both only by your explicit action: snippet export and Obsidian export. A note lands in plaintext in your vault, so treat it like any other file you save and don't send secrets there. Everything that stays inside Clipy Secure remains encrypted at rest.",
     ],
   },
   {
