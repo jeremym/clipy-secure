@@ -1,8 +1,8 @@
 ---
 import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import historySearchScreenshot from "../images/screenshots/history-search.png";
-import snippetEditorScreenshot from "../images/screenshots/snippet-editor.png";
+import historySearchScreenshot from "../images/screenshots/history-search-panel.png";
+import snippetEditorScreenshot from "../images/screenshots/snippet-editor-window.png";
 
 const base = import.meta.env.BASE_URL;
 
@@ -109,7 +109,7 @@ const tiers = [
         alt="Clipy Secure snippet editor with a folder sidebar and a snippet being edited"
         loading="lazy"
       />
-      <figcaption>figure / snippet editor / <span aria-hidden="true">capture pending</span></figcaption>
+      <figcaption>figure / snippet editor</figcaption>
     </figure>
   </section>
 
@@ -154,7 +154,7 @@ const tiers = [
         alt="Clipy Secure history search panel with a search field and a list of matching clips"
         loading="lazy"
       />
-      <figcaption>figure / history search / <span aria-hidden="true">⌃⌘V · capture pending</span></figcaption>
+      <figcaption>figure / history search / <span aria-hidden="true">⌃⌘V</span></figcaption>
     </figure>
     <p class="section-link"><a href={`${base}install/`}>install Clipy Secure <span aria-hidden="true">→</span></a></p>
   </section>
