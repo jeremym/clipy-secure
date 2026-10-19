@@ -53,9 +53,14 @@ final class HistoryPanelController {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.level = .floating
-        panel.center()
+        // Follow the user to the active Space, including a full-screen app's own
+        // Space, instead of staying pinned to the Space it first appeared on.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 300, height: 300)
-        panel.contentViewController = controller
+        // Install content before centering: assigning contentViewController
+        // resizes the panel to the hosting controller's fitting size, so
+        // centering must happen against the final frame, not the initial one.
+        panel.setCenteredContent(controller, size: NSSize(width: 480, height: 600))
         self.panel = panel
 
         Task {

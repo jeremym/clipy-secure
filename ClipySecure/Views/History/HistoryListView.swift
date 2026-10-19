@@ -108,12 +108,21 @@ struct HistoryListView: View {
         }
     }
 
+    /// The live observation refreshes the unfiltered list on its own; an active
+    /// search holds a snapshot, so re-run it to reflect the change.
+    private func refreshAfterMutation() {
+        guard !searchText.isEmpty else { return }
+        do {
+            items = try databaseService.searchClips(query: searchText)
+        } catch {
+            Logger.database.error("Search refresh after mutation failed: \(error.localizedDescription)")
+        }
+    }
+
     private func pasteItem(_ item: ClipItem) {
         guard let changeCount = pasteService.writeToClipboard(item) else { return }
-
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(changeCount)
 
         onDismiss()
 
@@ -131,6 +140,7 @@ struct HistoryListView: View {
         } catch {
             Logger.database.error("Failed to save to memory: \(error.localizedDescription)")
         }
+        refreshAfterMutation()
     }
 
     private func forget(_ item: ClipItem) {
@@ -139,6 +149,7 @@ struct HistoryListView: View {
         } catch {
             Logger.database.error("Failed to forget memory item: \(error.localizedDescription)")
         }
+        refreshAfterMutation()
     }
 
     private func deleteItem(_ item: ClipItem) {
@@ -147,6 +158,7 @@ struct HistoryListView: View {
         } catch {
             Logger.database.error("Failed to delete clip: \(error.localizedDescription)")
         }
+        refreshAfterMutation()
     }
 
     private func sendToObsidian(_ item: ClipItem) {
@@ -188,6 +200,7 @@ struct HistoryListView: View {
                 message: String(localized: "Check the vault folder in Preferences \u{25B8} Obsidian.")
             )
         }
+        refreshAfterMutation()
     }
 
     private func presentObsidianAlert(title: String, message: String) {

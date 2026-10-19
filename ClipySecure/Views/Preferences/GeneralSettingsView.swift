@@ -13,10 +13,15 @@ struct GeneralSettingsView: View {
     @Default(.numberOfMemoryItemsInline) var numberOfMemoryItemsInline
     @Default(.numberOfItemsPerMemoryFolder) var numberOfItemsPerMemoryFolder
 
-    private var memoryFolderCount: Int {
-        guard numberOfItemsPerMemoryFolder > 0 else { return 0 }
-        let remaining = maxMemorySize - numberOfMemoryItemsInline
-        return remaining > 0 ? Int(ceil(Double(remaining) / Double(numberOfItemsPerMemoryFolder))) : 0
+    private var memoryLayoutDescription: String {
+        let remaining = max(0, maxMemorySize - numberOfMemoryItemsInline)
+        if numberOfMemoryItemsInline == 0 {
+            return String(localized: "Menu layout: all memories in one Memory submenu")
+        }
+        if remaining == 0 {
+            return String(localized: "Menu layout: \(numberOfMemoryItemsInline) at top level")
+        }
+        return String(localized: "Menu layout: \(numberOfMemoryItemsInline) at top level, the rest in a Memory submenu")
     }
 
     private var folderCount: Int {
@@ -84,8 +89,8 @@ struct GeneralSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Memory keeps your most recent \(maxMemorySize) saved clips; older ones drop off\(memoryExpirationDays == 0 ? "." : ", and anything older than \(memoryExpirationDays) day\(memoryExpirationDays == 1 ? "" : "s") expires.") Pinned clips are always kept. It's a short-term parking lot, not an archive — promote to a snippet to keep something forever.")
-                    Text("At top level: 0 = None (the whole section collapses to one Memory \u{25B8} submenu).")
-                    Text("Menu layout: \(numberOfMemoryItemsInline) at top level + \(memoryFolderCount) folder\(memoryFolderCount == 1 ? "" : "s") of \(numberOfItemsPerMemoryFolder)")
+                    Text("At top level: 0 = None (the whole section collapses to one Memory \u{25B8} submenu). Inline rows share one key sequence with history, continuing after it; the Memory submenu opens with the next key.")
+                    Text(memoryLayoutDescription)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

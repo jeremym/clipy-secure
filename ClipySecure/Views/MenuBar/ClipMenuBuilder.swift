@@ -515,6 +515,20 @@ enum MenuShortcutKeys {
         guard index >= 0, index < keys.count else { return "" }
         return String(keys[index])
     }
+
+    /// How many top-level key slots a section of `itemCount` items consumes:
+    /// its inline rows plus one per folder. The memory section starts keying at
+    /// the history section's slot count, so no key is claimed by two rows.
+    /// `inlineCount == 0` means every row is inline (history's convention).
+    static func topLevelSlots(itemCount: Int, inlineCount: Int, folderSize: Int) -> Int {
+        guard itemCount > 0 else { return 0 }
+        let inline = inlineCount == 0 ? itemCount : min(inlineCount, itemCount)
+        let remaining = itemCount - inline
+        let folders = (folderSize > 0 && remaining > 0)
+            ? Int(ceil(Double(remaining) / Double(folderSize)))
+            : 0
+        return inline + folders
+    }
 }
 
 // MARK: - Array chunking helper

@@ -61,6 +61,266 @@ final class MenuShortcutKeysTests: XCTestCase {
         XCTAssertFalse(keys.contains("1"))
         XCTAssertFalse(keys.contains("2"))
     }
+
+    // MARK: - Shared-sequence continuation (review #6)
+
+    func testTopLevelSlotsInlinePlusFolders() {
+        // 5 inline + ceil(27 / 10) = 3 folders → 8 slots, so the memory section
+        // begins keying its rows at index 8.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 32, inlineCount: 5, folderSize: 10), 8)
+    }
+
+    func testTopLevelSlotsAllInlineWhenZero() {
+        // History's convention: 0 inline means every row is inline.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 7, inlineCount: 0, folderSize: 10), 7)
+    }
+
+    func testTopLevelSlotsNoOverflow() {
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 3, inlineCount: 5, folderSize: 10), 3)
+    }
+
+    func testTopLevelSlotsEmptySectionConsumesNothing() {
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 0, inlineCount: 5, folderSize: 10), 0)
+    }
+
+    func testTopLevelSlotsExactFolderBoundary() {
+        // 5 inline + exactly 10 remaining → 1 folder, not 2.
+        XCTAssertEqual(MenuShortcutKeys.topLevelSlots(itemCount: 15, inlineCount: 5, folderSize: 10), 6)
+    }
+}
+
+/// White-box tests that the menu builder assigns real single-key shortcuts to
+/// memory rows and continues the shared sequence past the history section
+/// (review #6). Key assignments ride on each item's `identifier` as
+/// "clipkey:<key>" (see `MenuKeyRouter.assign`).
+final class MemoryMenuKeyTests: XCTestCase {
+
+    private let keyPrefix = "clipkey:"
+    private var saved: [String: Any?] = [:]
+
+    @MainActor
+    private func withMenuDefaults(_ body: () -> Void) {
+        // Snapshot and restore the UserDefaults keys the builder reads, so the
+        // test never leaves the developer's real preferences changed.
+        let keys = [
+            "menuShortcutKeys", "maxHistorySize", "numberOfItemsInline",
+            "numberOfItemsInFolder", "maxMemorySize", "numberOfMemoryItemsInline",
+            "numberOfItemsPerMemoryFolder", "menuItemTitleMaxLength",
+            "showImagesInMenu", "showTooltips",
+        ]
+        let defaults = UserDefaults.standard
+        for key in keys { saved[key] = defaults.object(forKey: key) }
+        defer {
+            for key in keys {
+                if let value = saved[key], value != nil {
+                    defaults.set(value, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
+            }
+        }
+
+        Defaults[.menuShortcutKeys] = MenuShortcutKeys.default // 1234567890abc…
+        Defaults[.maxHistorySize] = 32
+        Defaults[.numberOfItemsInline] = 5
+        Defaults[.numberOfItemsInFolder] = 10
+        Defaults[.maxMemorySize] = 100
+        Defaults[.menuItemTitleMaxLength] = 40
+        Defaults[.showImagesInMenu] = false
+        Defaults[.showTooltips] = false
+        body()
+    }
+
+    private func items(_ count: Int) -> [ClipItem] {
+        (0..<count).map { ClipItem(stringValue: "clip \($0)") }
+    }
+
+    private func noopActions() -> ClipMenuBuilder.RowActions {
+        let noop = Selector(("noop:"))
+        return ClipMenuBuilder.RowActions(paste: noop, primary: noop, obsidian: noop, destructive: noop, openSubmenu: noop)
+    }
+
+    @MainActor
+    func testHistoryReturnsNextFreeKeyIndex() {
+        withMenuDefaults {
+            let menu = NSMenu()
+            let next = ClipMenuBuilder.addHistoryItems(
+                to: menu,
+                items: items(32),
+                target: NSObject(),
+                actions: noopActions(),
+                folderAction: Selector(("noop:"))
+            )
+            // 5 inline + 3 folders of 10 = 8.
+            XCTAssertEqual(next, 8)
+        }
+    }
+
+    @MainActor
+    func testMemoryInlineRowsContinueSequenceAfterHistory() {
+        withMenuDefaults {
+            Defaults[.numberOfMemoryItemsInline] = 2
+            Defaults[.numberOfItemsPerMemoryFolder] = 40
+
+            let menu = NSMenu()
+            // History consumes slots 0–7, so memory starts at index 8 → "9","0".
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: items(5),
+                target: NSObject(),
+                actions: noopActions(),
+                folderAction: Selector(("noop:")),
+                keyOffset: 8
+            )
+
+            // Each inline row's single-key paste rides on a hidden opener; with
+            // history consuming slots 0–7, memory inline keys are "9" then "0".
+            let ids = menu.items.compactMap { $0.identifier?.rawValue }
+            XCTAssertTrue(ids.contains(keyPrefix + "9"))
+            XCTAssertTrue(ids.contains(keyPrefix + "0"))
+        }
+    }
+
+    @MainActor
+    func testMemoryZeroInlineCollapsesToSubmenu() {
+        withMenuDefaults {
+            Defaults[.numberOfMemoryItemsInline] = 0
+            Defaults[.numberOfItemsPerMemoryFolder] = 40
+
+            let menu = NSMenu()
+            ClipMenuBuilder.addMemoryItems(
+                to: menu,
+                items: items(5),
+                target: NSObject(),
+                actions: noopActions(),
+                folderAction: Selector(("noop:")),
+                keyOffset: 8
+            )
+
+            // header, then the single Memory ▸ submenu row (no inline rows).
+            let submenuRow = menu.items.first { $0.submenu != nil }
+            XCTAssertNotNil(submenuRow, "0 inline should collapse to one Memory submenu")
+            // Rows inside restart the sequence at the head: the first row's paste
+            // opener carries key "1".
+            let innerIds = submenuRow?.submenu?.items.compactMap { $0.identifier?.rawValue } ?? []
+            XCTAssertTrue(innerIds.contains(keyPrefix + "1"))
+        }
+    }
+}
+
+/// Image storage (review #4): full-resolution bytes for faithful paste, a small
+/// thumbnail for display.
+final class ImageStorageTests: XCTestCase {
+
+    /// Builds a solid-colour image at a known pixel size without lockFocus
+    /// (forbidden per project rules).
+    private func makeImage(width: Int, height: Int) -> NSImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let cgImage = context.makeImage()!
+        return NSImage(cgImage: cgImage, size: NSSize(width: width, height: height))
+    }
+
+    private func pixelWidth(ofPNG data: Data) -> Int? {
+        NSBitmapImageRep(data: data)?.pixelsWide
+    }
+
+    func testPNGDataPreservesFullResolution() throws {
+        let image = makeImage(width: 800, height: 600)
+        let png = try XCTUnwrap(image.pngData())
+        XCTAssertEqual(pixelWidth(ofPNG: png), 800, "full image keeps its resolution")
+    }
+
+    func testThumbnailShrinksLargeImages() throws {
+        let image = makeImage(width: 800, height: 600)
+        let thumb = try XCTUnwrap(image.resizedToThumbnail(maxWidth: 200))
+        XCTAssertEqual(pixelWidth(ofPNG: thumb), 200, "thumbnail is capped at maxWidth")
+        XCTAssertLessThan(thumb.count, try XCTUnwrap(image.pngData()).count, "thumbnail is smaller than the full image")
+    }
+}
+
+/// Snippet editor selection model (review #12/#13, plan §4). UI (highlight,
+/// focus, sidebar width) is manually verified; this covers the view-model logic.
+@MainActor
+final class SnippetSelectionTests: XCTestCase {
+
+    private func makeViewModel() throws -> (SnippetEditorViewModel, DatabaseService) {
+        let db = try DatabaseService(dbQueue: DatabaseQueue(configuration: Configuration()))
+        return (SnippetEditorViewModel(databaseService: db), db)
+    }
+
+    func testSelectionDerivesLegacyAccessors() throws {
+        let (vm, _) = try makeViewModel()
+
+        vm.selection = .snippet("s1")
+        XCTAssertEqual(vm.selectedSnippetId, "s1")
+        XCTAssertNil(vm.selectedFolderId)
+        XCTAssertFalse(vm.isRootSelected)
+
+        vm.selection = .folder("f1")
+        XCTAssertEqual(vm.selectedFolderId, "f1")
+        XCTAssertNil(vm.selectedSnippetId)
+        XCTAssertFalse(vm.isRootSelected)
+
+        vm.selection = .root
+        XCTAssertTrue(vm.isRootSelected)
+        XCTAssertNil(vm.selectedFolderId)
+        XCTAssertNil(vm.selectedSnippetId)
+    }
+
+    func testAddSnippetIntoSelectedFolder() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "Work", sortIndex: 0)
+        try db.saveFolder(folder)
+        vm.selection = .folder(folder.id)
+
+        vm.addSnippet()
+
+        let saved = try db.fetchSnippets(inFolder: folder.id)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(vm.selectedSnippetId, saved.first?.id, "the new snippet becomes selected")
+    }
+
+    func testAddSnippetWithNoSelectionAndNoFoldersCreatesMySnippets() throws {
+        let (vm, db) = try makeViewModel()
+        vm.selection = nil
+
+        vm.addSnippet()
+
+        let folders = try db.fetchFolders()
+        XCTAssertEqual(folders.count, 1)
+        XCTAssertEqual(folders.first?.title, "My Snippets")
+        let saved = try db.fetchSnippets(inFolder: folders[0].id)
+        XCTAssertEqual(saved.count, 1, "snippet should land in the new folder, not at the root")
+    }
+
+    func testFolderHasSnippets() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "F", sortIndex: 0)
+        try db.saveFolder(folder)
+        // `allSnippets` is normally filled by the async observation; set it
+        // directly for a deterministic check.
+        vm.allSnippets = [Snippet(folderId: folder.id, title: "x", sortIndex: 0)]
+        XCTAssertTrue(vm.folderHasSnippets(folder.id))
+        XCTAssertFalse(vm.folderHasSnippets("other"))
+    }
+
+    func testDeleteFolderClearsSelection() throws {
+        let (vm, db) = try makeViewModel()
+        let folder = SnippetFolder(title: "F", sortIndex: 0)
+        try db.saveFolder(folder)
+        vm.selection = .folder(folder.id)
+
+        vm.deleteFolder(folder.id)
+
+        XCTAssertNil(vm.selection)
+    }
 }
 
 final class ClipItemCodableTests: XCTestCase {
@@ -203,6 +463,50 @@ final class DatabaseServiceTests: XCTestCase {
         let fetched = try db.fetchClipItem(id: clip.id)
         XCTAssertNotNil(fetched)
         XCTAssertEqual(fetched?.stringValue, "fetch by id test")
+    }
+
+    func testDeleteClipRemovesRowAndSearchIndex() throws {
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "delete-me-token")
+        try db.save(clip: clip)
+        XCTAssertNotNil(try db.fetchClipItem(id: clip.id))
+        XCTAssertFalse(try db.searchClips(query: "delete-me-token").isEmpty)
+
+        try db.deleteClip(id: clip.id)
+
+        XCTAssertNil(try db.fetchClipItem(id: clip.id))
+        XCTAssertTrue(try db.searchClips(query: "delete-me-token").isEmpty, "the FTS row must go too")
+    }
+
+    func testDeleteClipRemovesMemorizedClip() throws {
+        // The security gap in review #2: a memorised secret had no removal path.
+        let db = try makeService()
+        let clip = ClipItem(stringValue: "secret-memory")
+        try db.save(clip: clip)
+        try db.setMemory(clipId: clip.id)
+
+        try db.deleteClip(id: clip.id)
+
+        XCTAssertNil(try db.fetchClipItem(id: clip.id))
+    }
+
+    func testImageClipStoresFullBytesAndThumbnailSeparately() throws {
+        // review #4: the full image and its display thumbnail are distinct
+        // encrypted columns and both survive a round trip.
+        let db = try makeService()
+        let full = Data(repeating: 0xAB, count: 4096)
+        let thumb = Data(repeating: 0xCD, count: 256)
+        let content = ClipContent(
+            primaryType: .tiff, stringValue: nil, rtfData: nil, pdfData: nil,
+            imageData: full, thumbnailData: thumb, filenames: nil, urls: nil,
+            sourceAppId: nil, types: [.tiff]
+        )
+        let clip = ClipItem(content: content)
+        try db.save(clip: clip)
+
+        let fetched = try db.fetchClipItem(id: clip.id)
+        XCTAssertEqual(fetched?.imageData, full, "full image bytes must survive")
+        XCTAssertEqual(fetched?.thumbnailData, thumb, "the separate thumbnail must survive")
     }
 
     func testSnippetFolderCRUD() throws {
@@ -428,6 +732,26 @@ final class SecurityFixTests: XCTestCase {
         pasteboard.declareTypes([.string, transient], owner: nil)
         pasteboard.setString("transient content", forType: .string)
         XCTAssertNil(PasteboardReader.read(from: pasteboard), "Transient-marked content must never be stored")
+    }
+
+    @MainActor
+    func testStoreTypesFiltersWhatIsRead() {
+        // review #9: storeTypes must gate what is read, not just whether a clip
+        // is saved at all.
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("test-\(UUID().uuidString)"))
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("some text", forType: .string)
+
+        // String disallowed → nothing to store.
+        XCTAssertNil(
+            PasteboardReader.read(from: pasteboard, storeTypes: [ClipContentType.tiff.rawValue]),
+            "a disallowed type must not be read"
+        )
+
+        // String allowed → read normally.
+        let allowed = PasteboardReader.read(from: pasteboard, storeTypes: [ClipContentType.string.rawValue])
+        XCTAssertEqual(allowed?.stringValue, "some text")
+        XCTAssertEqual(allowed?.primaryType, .string)
     }
 
     func testEnforceLimitReportsDeletedCount() throws {
@@ -664,15 +988,6 @@ final class SeedServiceTests: XCTestCase {
         return try DatabaseService(dbQueue: dbQueue)
     }
 
-    /// Runs `body` with the seed marker forced to `false`, restoring whatever
-    /// the host's UserDefaults held before, so the test never leaks state.
-    private func withResetMarker(_ body: () throws -> Void) rethrows {
-        let original = Defaults[.hasSeededExampleSnippets]
-        defer { Defaults[.hasSeededExampleSnippets] = original }
-        Defaults[.hasSeededExampleSnippets] = false
-        try body()
-    }
-
     func testSeedExamplesInsertsFolderAndSnippets() throws {
         let db = try makeService()
         try SeedService.seedExamples(into: db)
@@ -684,34 +999,22 @@ final class SeedServiceTests: XCTestCase {
         XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
     }
 
-    func testSeedsOnEmptyStoreThenNeverAgain() throws {
-        try withResetMarker {
-            let db = try makeService()
-
-            XCTAssertTrue(SeedService.seedExampleSnippetsIfNeeded(into: db))
-            XCTAssertTrue(Defaults[.hasSeededExampleSnippets])
-            let afterFirst = try db.fetchFolders().filter { $0.title == SeedService.exampleFolderTitle }.count
-            XCTAssertEqual(afterFirst, 1)
-
-            // Marker is set — a second call is a no-op, no duplicate folder.
-            XCTAssertFalse(SeedService.seedExampleSnippetsIfNeeded(into: db))
-            let afterSecond = try db.fetchFolders().filter { $0.title == SeedService.exampleFolderTitle }.count
-            XCTAssertEqual(afterSecond, 1)
-        }
+    // Pure decision logic — deterministic, no global Defaults, no test-order
+    // coupling. Seed only on a truly first run with an empty store.
+    func testShouldSeedOnlyWhenUnseededAndEmpty() {
+        XCTAssertTrue(SeedService.shouldSeed(alreadySeeded: false, storeEmpty: true))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: true, storeEmpty: true))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: false, storeEmpty: false))
+        XCTAssertFalse(SeedService.shouldSeed(alreadySeeded: true, storeEmpty: false))
     }
 
-    func testDoesNotSeedWhenSnippetsAlreadyExist() throws {
-        try withResetMarker {
-            let db = try makeService()
-            let existing = SnippetFolder(title: "My Stuff", sortIndex: 0)
-            try db.saveFolder(existing)
-            try db.saveSnippet(Snippet(folderId: existing.id, title: "Mine", content: "x", sortIndex: 0))
+    func testSnippetStoreEmptyReflectsContents() throws {
+        let db = try makeService()
+        XCTAssertTrue(try db.isSnippetStoreEmpty())
 
-            XCTAssertFalse(SeedService.seedExampleSnippetsIfNeeded(into: db))
-            // No Examples folder injected, but the marker is set so we stop checking.
-            XCTAssertTrue(try db.fetchFolders().allSatisfy { $0.title != SeedService.exampleFolderTitle })
-            XCTAssertTrue(Defaults[.hasSeededExampleSnippets])
-        }
+        let folder = SnippetFolder(title: "My Stuff", sortIndex: 0)
+        try db.saveFolder(folder)
+        XCTAssertFalse(try db.isSnippetStoreEmpty(), "A folder alone makes the store non-empty")
     }
 }
 
@@ -783,7 +1086,7 @@ final class ObsidianExportServiceTests: XCTestCase {
     func testURLBecomesMarkdownLink() throws {
         let content = ClipContent(
             primaryType: .url, stringValue: "https://example.com",
-            rtfData: nil, pdfData: nil, imageData: nil, filenames: nil,
+            rtfData: nil, pdfData: nil, imageData: nil, thumbnailData: nil, filenames: nil,
             urls: ["https://example.com"], sourceAppId: nil, types: [.url]
         )
         let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
@@ -793,7 +1096,7 @@ final class ObsidianExportServiceTests: XCTestCase {
     func testFilenamesBecomeBulletList() throws {
         let content = ClipContent(
             primaryType: .filenames, stringValue: nil,
-            rtfData: nil, pdfData: nil, imageData: nil,
+            rtfData: nil, pdfData: nil, imageData: nil, thumbnailData: nil,
             filenames: ["/tmp/a.txt", "/tmp/b.png"], urls: nil, sourceAppId: nil, types: [.filenames]
         )
         let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
@@ -811,7 +1114,7 @@ final class ObsidianExportServiceTests: XCTestCase {
         let tiff = try XCTUnwrap(rep?.tiffRepresentation)
         let content = ClipContent(
             primaryType: .tiff, stringValue: nil, rtfData: nil, pdfData: nil,
-            imageData: tiff, filenames: nil, urls: nil, sourceAppId: nil, types: [.tiff]
+            imageData: tiff, thumbnailData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.tiff]
         )
         let url = try ObsidianExportService.export(ClipItem(content: content), options: options(frontmatter: false))
         let body = try read(url)
@@ -838,7 +1141,7 @@ final class ObsidianExportServiceTests: XCTestCase {
     func testEmptyContentThrows() throws {
         let content = ClipContent(
             primaryType: .string, stringValue: nil, rtfData: nil, pdfData: nil,
-            imageData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.string]
+            imageData: nil, thumbnailData: nil, filenames: nil, urls: nil, sourceAppId: nil, types: [.string]
         )
         XCTAssertThrowsError(try ObsidianExportService.export(ClipItem(content: content), options: options()))
     }

@@ -3,15 +3,41 @@ import GRDB
 import Observation
 import OSLog
 
+/// One value drives the sidebar's `List(selection:)`. Giving folders and
+/// snippets distinct cases (rather than a bare `String`) is what lets a folder
+/// row take the selection highlight without being mistaken for a snippet id —
+/// the root cause of the "click a folder, nothing highlights / Delete no-ops"
+/// bug (review #12).
+enum SnippetSidebarSelection: Hashable {
+    case root
+    case folder(String)
+    case snippet(String)
+}
+
 @Observable
 @MainActor
 final class SnippetEditorViewModel {
     var folders: [SnippetFolder] = []
     var allSnippets: [Snippet] = []
-    var selectedFolderId: String?
-    var selectedSnippetId: String?
-    /// When true, the "root" section is selected (no folder)
-    var isRootSelected: Bool = false
+
+    /// The single source of truth for what the sidebar has selected.
+    var selection: SnippetSidebarSelection?
+
+    // The rest of the app still reads these three; they are now derived from
+    // `selection` instead of being independent stored state that could desync.
+    var selectedSnippetId: String? {
+        if case .snippet(let id) = selection { return id }
+        return nil
+    }
+
+    var selectedFolderId: String? {
+        if case .folder(let id) = selection { return id }
+        return nil
+    }
+
+    var isRootSelected: Bool {
+        selection == .root
+    }
 
     private let databaseService: DatabaseService
     private var observationTask: Task<Void, Never>?
@@ -92,9 +118,7 @@ final class SnippetEditorViewModel {
         } catch {
             Logger.database.error("Failed to add folder: \(error.localizedDescription)")
         }
-        selectedFolderId = folder.id
-        selectedSnippetId = nil
-        isRootSelected = false
+        selection = .folder(folder.id)
     }
 
     func deleteFolder(_ folderId: String) {
@@ -104,9 +128,14 @@ final class SnippetEditorViewModel {
             Logger.database.error("Failed to delete folder: \(error.localizedDescription)")
         }
         if selectedFolderId == folderId {
-            selectedFolderId = nil
-            selectedSnippetId = nil
+            selection = nil
         }
+    }
+
+    /// Whether deleting `folderId` would cascade-delete snippets, so the UI can
+    /// confirm first (review #13).
+    func folderHasSnippets(_ folderId: String) -> Bool {
+        allSnippets.contains { $0.folderId == folderId }
     }
 
     func updateFolderTitle(_ folderId: String, title: String) {
@@ -135,16 +164,24 @@ final class SnippetEditorViewModel {
 
     func addSnippet() {
         let folderId: String?
-        let folderSnippets: [Snippet]
 
-        if isRootSelected || selectedFolderId == nil {
+        switch selection {
+        case .folder(let id):
+            folderId = id
+        case .snippet(let id):
+            // Add alongside the selected snippet, in whatever folder it lives in.
+            folderId = allSnippets.first { $0.id == id }?.folderId
+        case .root:
             folderId = nil
-            folderSnippets = rootSnippets
-        } else {
-            folderId = selectedFolderId
-            folderSnippets = snippets(inFolder: selectedFolderId!)
+        case nil:
+            // Nothing selected: nudge toward folders rather than silently adding
+            // at the root. Target the first folder, creating "My Snippets" if
+            // there are none yet.
+            guard let targetFolder = folders.first ?? createDefaultFolder() else { return }
+            folderId = targetFolder.id
         }
 
+        let folderSnippets = folderId.map(snippets(inFolder:)) ?? rootSnippets
         let nextIndex = (folderSnippets.last?.sortIndex ?? -1) + 1
         let snippet = Snippet(folderId: folderId, sortIndex: nextIndex)
         do {
@@ -152,7 +189,22 @@ final class SnippetEditorViewModel {
         } catch {
             Logger.database.error("Failed to add snippet: \(error.localizedDescription)")
         }
-        selectedSnippetId = snippet.id
+        selection = .snippet(snippet.id)
+    }
+
+    /// Creates the "My Snippets" fallback folder when the user adds a snippet
+    /// with nothing selected and no folders exist. Returns nil only if the write
+    /// failed. The observation refreshes `folders` shortly after.
+    private func createDefaultFolder() -> SnippetFolder? {
+        let nextIndex = (folders.last?.sortIndex ?? -1) + 1
+        let folder = SnippetFolder(title: String(localized: "My Snippets"), sortIndex: nextIndex)
+        do {
+            try databaseService.saveFolder(folder)
+            return folder
+        } catch {
+            Logger.database.error("Failed to create default folder: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     func deleteSnippet(_ snippetId: String) {
@@ -163,7 +215,7 @@ final class SnippetEditorViewModel {
             Logger.database.error("Failed to delete snippet: \(error.localizedDescription)")
         }
         if selectedSnippetId == snippetId {
-            selectedSnippetId = nil
+            selection = nil
         }
     }
 
@@ -232,21 +284,15 @@ final class SnippetEditorViewModel {
             return false
         }
 
-        selectedSnippetId = snippetId
-        selectedFolderId = folderId
-        isRootSelected = folderId == nil
+        selection = .snippet(snippetId)
         return true
     }
 
-    func selectFolder(_ folderId: String?) {
-        selectedFolderId = folderId
-        selectedSnippetId = nil
-        isRootSelected = false
+    func selectFolder(_ folderId: String) {
+        selection = .folder(folderId)
     }
 
     func selectRoot() {
-        selectedFolderId = nil
-        selectedSnippetId = nil
-        isRootSelected = true
+        selection = .root
     }
 }

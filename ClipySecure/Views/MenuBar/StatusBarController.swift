@@ -265,10 +265,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        let currentMode = menuMode
-        menuMode = .full
-
-        switch currentMode {
+        // Keep menuMode until the menu closes. popUp(mode:) calls this once to
+        // size the menu, then AppKit calls it again from menu.popUp; resetting to
+        // .full here made that second build ignore the requested mode and always
+        // show the full menu (review #5). menuDidClose restores .full.
+        switch menuMode {
         case .full:
             buildFullMenu(menu)
         case .historyOnly:
@@ -342,7 +343,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             action: #selector(snippetClicked(_:))
         )
 
-        // Memory section (below snippets)
+        // Memory section (below snippets), hidden entirely when the user turns it
+        // off. Inline rows continue the shared key sequence from where history
+        // stopped (nextKeyIndex), so no keystroke is claimed twice.
         if Defaults[.showMemorySection] {
             menu.addItem(NSMenuItem.separator())
             ClipMenuBuilder.addMemoryItems(
@@ -468,10 +471,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
 
-        let changeCount = pasteboard.changeCount
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(pasteboard.changeCount)
 
         Task {
             try? await Task.sleep(for: .milliseconds(100))
@@ -498,6 +499,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func clearAllClicked(_ sender: NSMenuItem) {
+        // The hotkey and Preferences both confirm before clearing; the menu item
+        // did not (review #3). Match them, with Cancel as the Return default.
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Clear History")
+        alert.informativeText = String(localized: "Are you sure you want to clear all clipboard history? This cannot be undone. Memorized items will be preserved.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: String(localized: "Clear"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
             try databaseService.deleteAll()
         } catch {
@@ -635,10 +649,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             fullItem = item
         }
         guard let changeCount = pasteService.writeToClipboard(fullItem) else { return }
-
-        Task {
-            await clipboardMonitor.updateLastSetChangeCount(changeCount)
-        }
+        // Record synchronously so a poll can't re-capture what we just wrote.
+        clipboardMonitor.noteSetChangeCount(changeCount)
 
         // Reorder after paste: update the item's timestamp so it moves to top of history
         if Defaults[.reorderAfterPaste] {

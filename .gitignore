@@ -56,3 +56,6 @@ site/.astro/
 *.p12
 *.mobileprovision
 *.pem
+
+# Release build output
+dist/

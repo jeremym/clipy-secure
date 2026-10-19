@@ -6,10 +6,31 @@ final class DatabaseService: Sendable {
     let dbQueue: DatabaseQueue
     private let fieldEncryption: FieldEncryption
 
-    init() throws {
-        let appSupportURL = FileManager.default
+    /// The app-support directory holding the on-disk database.
+    static func storeDirectory() -> URL {
+        FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent(Constants.appSupportDirectoryName)
+    }
+
+    /// Deletes the on-disk database (and its WAL/SHM sidecars) and the encryption
+    /// key. The recovery path when the key can't be read — e.g. the Keychain
+    /// prompt was denied after a re-sign — so the next init starts fresh with a
+    /// new key and empty history (review #15). Destructive by design.
+    static func destroyStore() throws {
+        let dir = storeDirectory()
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            let url = dir.appendingPathComponent("clipy.db\(suffix)")
+            if fm.fileExists(atPath: url.path) {
+                try fm.removeItem(at: url)
+            }
+        }
+        try EncryptionKeyManager().deleteKey()
+    }
+
+    init() throws {
+        let appSupportURL = Self.storeDirectory()
 
         try FileManager.default.createDirectory(
             at: appSupportURL,
@@ -274,6 +295,17 @@ final class DatabaseService: Sendable {
             try db.execute(sql: "DROP TABLE IF EXISTS clipItemFts")
         }
 
+        migrator.registerMigration("v11-addEncThumbnail") { db in
+            // Separate the full image (encImageData) from a small display
+            // thumbnail (review #4). Nullable column, no row rewrite: existing
+            // image rows keep whatever encImageData already held (a 200px
+            // thumbnail from before this change — the original was never stored,
+            // so it cannot be recovered) and get a null thumbnail.
+            try db.alter(table: "clipItem") { t in
+                t.add(column: "encThumbnailData", .blob)
+            }
+        }
+
         return migrator
     }
 
@@ -338,6 +370,7 @@ final class DatabaseService: Sendable {
         stored.encRtfData = try clip.rtfData.map { try fieldEncryption.encrypt($0) }
         stored.encPdfData = try clip.pdfData.map { try fieldEncryption.encrypt($0) }
         stored.encImageData = try clip.imageData.map { try fieldEncryption.encrypt($0) }
+        stored.encThumbnailData = try clip.thumbnailData.map { try fieldEncryption.encrypt($0) }
         stored.encFilenames = try clip.filenames.map { try fieldEncryption.encrypt($0) }
         stored.encUrls = try clip.urls.map { try fieldEncryption.encrypt($0) }
         return stored
@@ -363,6 +396,9 @@ final class DatabaseService: Sendable {
             }
             if let enc = clip.encImageData {
                 item.imageData = try fieldEncryption.decryptData(enc)
+            }
+            if let enc = clip.encThumbnailData {
+                item.thumbnailData = try fieldEncryption.decryptData(enc)
             }
             if let enc = clip.encFilenames {
                 item.filenames = try fieldEncryption.decryptString(enc)
@@ -714,6 +750,17 @@ final class DatabaseService: Sendable {
                 sql: "UPDATE clipItem SET isMemory = 0, memorizedAt = NULL WHERE id = ?",
                 arguments: [clipId]
             )
+        }
+    }
+
+    /// Deletes one clip entirely — the row and its in-memory search-index entry.
+    /// Unlike `deleteAll`/`deleteOldest`, this ignores `isMemory`/`isPinned`: it
+    /// is the explicit "delete this clip" path, so an accidentally memorised
+    /// secret can actually be removed (review #2).
+    func deleteClip(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM ftsmem.clipItemFts WHERE clipId = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM clipItem WHERE id = ?", arguments: [id])
         }
     }
 

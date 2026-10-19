@@ -40,6 +40,14 @@ enum SeedService {
         ),
     ]
 
+    /// Whether a first-run seed should actually insert examples. Pure decision
+    /// logic (no Defaults / no DB) so it is deterministically unit-testable:
+    /// seed only when we have never seeded *and* the store is empty, so an
+    /// upgrading user who already has snippets is never surprised.
+    static func shouldSeed(alreadySeeded: Bool, storeEmpty: Bool) -> Bool {
+        !alreadySeeded && storeEmpty
+    }
+
     /// App entry point: seed exactly once. Guarded by a Defaults marker *and* an
     /// empty-store check, so an upgrading user who already has snippets (but
     /// somehow lacks the marker) is never surprised by injected examples.
@@ -47,7 +55,8 @@ enum SeedService {
     static func seedExampleSnippetsIfNeeded(into db: DatabaseService) -> Bool {
         guard !Defaults[.hasSeededExampleSnippets] else { return false }
         do {
-            guard try db.isSnippetStoreEmpty() else {
+            let storeEmpty = try db.isSnippetStoreEmpty()
+            guard shouldSeed(alreadySeeded: false, storeEmpty: storeEmpty) else {
                 // Existing snippets present: record that we've "seeded" so we
                 // never check again, but leave the user's store untouched.
                 Defaults[.hasSeededExampleSnippets] = true

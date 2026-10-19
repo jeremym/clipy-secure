@@ -33,6 +33,15 @@ enum MainMenu {
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:))
         )
         menu.addItem(.separator())
+        // nil target → dispatched through the responder chain to AppDelegate's
+        // `openPreferences(_:)`, so ⌘, works while any ClipySecure window is key,
+        // not only from inside the clip menu.
+        menu.addItem(
+            title: String(localized: "Preferences…"),
+            action: Selector(("openPreferences:")),
+            keyEquivalent: ","
+        )
+        menu.addItem(.separator())
         menu.addItem(
             title: String(localized: "Hide \(appName)"),
             action: #selector(NSApplication.hide(_:)),

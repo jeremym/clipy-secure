@@ -14,8 +14,7 @@ final class SnippetEditorWindow {
 
     func showWindow() {
         if let existing = window {
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            existing.presentDeferred()
             return
         }
 
@@ -25,7 +24,7 @@ final class SnippetEditorWindow {
         hostingController = controller
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
+            contentRect: NSRect(x: 0, y: 0, width: 960, height: 650),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: true
@@ -33,7 +32,7 @@ final class SnippetEditorWindow {
         window.title = String(localized: "Snippet Editor")
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 600, height: 450)
-        window.setCenteredContent(controller, size: NSSize(width: 900, height: 650))
+        window.setCenteredContent(controller, size: NSSize(width: 960, height: 650))
         self.window = window
 
         // The user can close this with the red button, which bypasses close();

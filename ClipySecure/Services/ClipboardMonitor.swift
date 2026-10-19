@@ -8,7 +8,11 @@ actor ClipboardMonitor {
     private let excludeAppService: ExcludeAppService?
     private let dataCleanupService: DataCleanupService?
     private var lastChangeCount: Int = 0
-    private var lastSetChangeCount: Int = 0
+    /// The change count produced by our own paste. Lock-guarded so the paste
+    /// path (main thread) can record it synchronously, before the next poll (on
+    /// the actor's executor) can observe the bumped pasteboard and re-capture the
+    /// clip we just wrote (review #17).
+    private let lastSetChangeCount = LockedInt()
     private var monitoringTask: Task<Void, Never>?
     /// Tracks unpinned inserts since last cleanup to batch limit enforcement
     private var insertsSinceCleanup: Int = 0
@@ -52,7 +56,7 @@ actor ClipboardMonitor {
         guard currentCount != lastChangeCount else { return }
         lastChangeCount = currentCount
 
-        guard currentCount != lastSetChangeCount else { return }
+        guard currentCount != lastSetChangeCount.value else { return }
 
         // Check if the copy could have come from an excluded app. The copy
         // happened at most one polling interval ago, so pass that window.
@@ -64,17 +68,16 @@ actor ClipboardMonitor {
             if excluded { return }
         }
 
-        // Use PasteboardReader for full multi-type reading + concealed type detection
+        // Use PasteboardReader for full multi-type reading + concealed type
+        // detection. storeTypes now filters *what is read and stored*, not just
+        // whether the clip is saved at all, so disallowed types never reach disk
+        // (review #9).
         let respectConcealed = Defaults[.respectConcealedType]
         let allowedTypes = Defaults[.storeTypes]
 
         guard let content = await MainActor.run(body: {
-            PasteboardReader.read(respectConcealedType: respectConcealed)
+            PasteboardReader.read(respectConcealedType: respectConcealed, storeTypes: allowedTypes)
         }) else { return }
-
-        // Filter: check if at least one detected type is in the allowed set
-        let hasAllowedType = content.types.contains { allowedTypes.contains($0.rawValue) }
-        guard hasAllowedType else { return }
 
         let clip = ClipItem(content: content)
         do {
@@ -95,7 +98,22 @@ actor ClipboardMonitor {
         }
     }
 
-    func updateLastSetChangeCount(_ count: Int) {
-        lastSetChangeCount = count
+    /// Records the change count our own paste produced. `nonisolated` + lock so
+    /// the paste path can call it synchronously right after writing the
+    /// pasteboard, with no actor hop that a poll could slip in front of.
+    nonisolated func noteSetChangeCount(_ count: Int) {
+        lastSetChangeCount.value = count
+    }
+}
+
+/// A lock-guarded Int shared between the actor and the main-thread paste path.
+/// `@unchecked Sendable` is sound: every access goes through the lock.
+final class LockedInt: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        get { lock.lock(); defer { lock.unlock() }; return storage }
+        set { lock.lock(); storage = newValue; lock.unlock() }
     }
 }
