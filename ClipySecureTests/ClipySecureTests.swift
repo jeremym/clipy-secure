@@ -874,7 +874,6 @@ final class MemoryCleanupTests: XCTestCase {
     }
 }
 
-@MainActor
 final class ClipMenuBuilderTests: XCTestCase {
 
     // The builder reads layout settings from Defaults; pin them to known values
@@ -923,6 +922,7 @@ final class ClipMenuBuilderTests: XCTestCase {
         return try XCTUnwrap(alt.submenu)
     }
 
+    @MainActor
     func testHistoryRowOwnsThreeItemActionSubmenu() throws {
         let menu = NSMenu()
         let item = ClipItem(stringValue: "history one")
@@ -937,6 +937,7 @@ final class ClipMenuBuilderTests: XCTestCase {
         XCTAssertEqual(submenu.items.compactMap { $0.identifier?.rawValue }, ["clipkey:m", "clipkey:o", "clipkey:d"])
     }
 
+    @MainActor
     func testMemoryRowSubmenuUsesMemoryLabels() throws {
         let menu = NSMenu()
         let item = ClipItem(stringValue: "memory one")
@@ -949,6 +950,7 @@ final class ClipMenuBuilderTests: XCTestCase {
         XCTAssertEqual(submenu.items.map(\.title), ["Promote to Snippet", "Send to Obsidian", "Forget"])
     }
 
+    @MainActor
     func testHistoryRowEmitsPlainAndOptionOpeners() throws {
         let menu = NSMenu()
         let item = ClipItem(stringValue: "history one")
@@ -966,6 +968,7 @@ final class ClipMenuBuilderTests: XCTestCase {
         XCTAssertEqual(openers.count, 2)
     }
 
+    @MainActor
     func testInlineMemoryContinuesKeySequenceAfterHistory() throws {
         let menu = NSMenu()
         let item = ClipItem(stringValue: "memory one")
