@@ -32,9 +32,17 @@ Use the scripts, not a bare `xcodebuild`, for any build you intend to actually r
 ./scripts/install-local.sh         # build + sign + install to /Applications + launch
 ```
 
-`install-local.sh` accepts `CODESIGN_IDENTITY` (default `ClipySecure Development`) and
+`install-local.sh` accepts `CODESIGN_IDENTITY` (default `ClipySecure Release`) and
 `SKIP_LAUNCH=1`. It aborts if the resulting designated requirement is cdhash-pinned,
 which would mean signing silently fell back to ad-hoc.
+
+The default is the **Release** identity on purpose: it is the same signature users get
+from the Homebrew cask (certificate leaf `a3ed032a…`), so a local build's designated
+requirement — and its Accessibility grant — matches the released app. Signing a local
+build with a *different* identity (e.g. `ClipySecure Development`) changes the designated
+requirement, so macOS treats it as a different app and the existing grant breaks (a stale
+entry shows in System Settings but auto-paste prompts anyway). Pass
+`CODESIGN_IDENTITY="ClipySecure Development"` only if you deliberately want the dev cert.
 
 **Why this matters.** Ad-hoc signing — what `xcodebuild` does by default — produces a
 designated requirement pinned to the binary hash:

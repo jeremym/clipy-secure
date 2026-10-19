@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Build ClipySecure Release, sign it with the local development certificate,
-# install to /Applications and relaunch.
+# Build ClipySecure Release, sign it with the release certificate, install to
+# /Applications and relaunch.
 #
 # Use this instead of a bare `xcodebuild` for anything you intend to actually
 # run. A default xcodebuild invocation signs ad-hoc, which changes the app's
@@ -12,14 +12,21 @@
 # Run scripts/create-signing-cert.sh once first.
 #
 # Env:
-#   CODESIGN_IDENTITY   signing identity (default "ClipySecure Development")
+#   CODESIGN_IDENTITY   signing identity (default "ClipySecure Release")
 #   SKIP_LAUNCH=1       install but do not relaunch
+#
+# The default is the *Release* identity on purpose: it is the same signature
+# users get from the Homebrew cask (certificate leaf a3ed032a…), so the local
+# build's designated requirement — and therefore its Accessibility grant —
+# matches the released app. Signing a local build with a different identity
+# (e.g. "ClipySecure Development") changes the designated requirement and makes
+# macOS treat it as a different app, which breaks the existing grant.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-IDENTITY="${CODESIGN_IDENTITY:-ClipySecure Development}"
+IDENTITY="${CODESIGN_IDENTITY:-ClipySecure Release}"
 DERIVED="${DERIVED_DATA:-/tmp/clipysecure-local}"
 APP_NAME="ClipySecure.app"
 INSTALLED="/Applications/$APP_NAME"
